@@ -3,7 +3,7 @@
 ## PROJECT IDENTITY
 
 CartGO is a distributed microservices-based order processing system built in Go.
-It handles product discovery, ordering, payment simulation, and inventory management under constrained stock conditions.
+It handles product discovery, ordering, payment simulation, inventory management, delivery coordination, and user support.
 
 ---
 
@@ -14,6 +14,34 @@ It handles product discovery, ordering, payment simulation, and inventory manage
 - Services communicate via **HTTP only**
 - No direct code or DB sharing across services
 - Focus on **system behavior**, not UI
+- System is **role-based**, not user-type based
+
+---
+
+## USER ROLES (RBAC MODEL)
+
+All users belong to the same system but have different roles:
+
+- CUSTOMER
+  - Browse products
+  - Place orders
+
+- WAREHOUSE_STAFF
+  - Manage inventory
+  - Update stock levels
+
+- DELIVERY_PARTNER
+  - View assigned deliveries
+  - Update delivery status
+
+- ADMIN
+  - Monitor system
+  - Manage users
+  - Override operations
+
+- SUPPORT_AGENT
+  - Answer user queries
+  - Guide product decisions
 
 ---
 
@@ -23,16 +51,19 @@ It handles product discovery, ordering, payment simulation, and inventory manage
 
 - Handles signup/login
 - Issues JWT tokens
+- Stores user roles
 
 ### 2. Product Service
 
 - Manages product catalog
 - Read-heavy service
+- Used by CUSTOMER + SUPPORT_AGENT
 
 ### 3. Inventory Service
 
 - Manages stock
 - Handles reserve/release operations
+- Used by WAREHOUSE_STAFF + ORDER_SERVICE
 - Must prevent overselling
 
 ### 4. Order Service (CORE)
@@ -46,24 +77,60 @@ It handles product discovery, ordering, payment simulation, and inventory manage
 - Simulates payment success/failure
 - Randomized response
 
-### 6. API Gateway
+### 6. Delivery Service
+
+- Assigns deliveries
+- Tracks delivery status
+- Used by DELIVERY_PARTNER
+
+### 7. Support Service
+
+- Handles user queries
+- Enables interaction between CUSTOMER and SUPPORT_AGENT
+
+### 8. API Gateway
 
 - Entry point for all client requests
 - Handles routing + auth middleware
+- Extracts role from JWT and forwards request
+
+---
+
+## ROLE → SERVICE ACCESS
+
+CUSTOMER
+→ Product Service (read)
+→ Order Service
+→ Support Service
+
+WAREHOUSE_STAFF
+→ Inventory Service
+
+DELIVERY_PARTNER
+→ Delivery Service
+
+SUPPORT_AGENT
+→ Support Service
+→ Product Service (read-only)
+
+ADMIN
+→ All services (via admin endpoints)
 
 ---
 
 ## SYSTEM FLOW
 
 Client → API Gateway
-→ User Service (auth)
-→ Product Service (browse)
-→ Order Service
+→ User Service (auth + JWT with role)
+→ Target Service (based on route)
+
+Order Flow:
+
+Client → API Gateway → Order Service
 
 Order Service:
-
-- calls Inventory Service (reserve)
-- calls Payment Service
+→ calls Inventory Service (reserve)
+→ calls Payment Service
 
 Decision:
 
@@ -95,6 +162,7 @@ Decision:
 - Communication via HTTP only
 - Keep shared `pkg/` minimal
 - Business logic must live in `service/` layer
+- Authorization must be enforced at service level (not just gateway)
 
 ---
 
@@ -111,6 +179,7 @@ CartGO/
 Each service:
 
 - cmd/
+
 - internal/
   - handler/
   - service/
@@ -118,6 +187,7 @@ Each service:
   - model/
 
 - api/
+
 - db/
 
 ---
@@ -129,10 +199,12 @@ Each service:
 3. inventory-service
 4. payment-service
 5. order-service
-6. api-gateway
-7. dockerize
-8. kubernetes
-9. AWS deployment
+6. delivery-service
+7. support-service
+8. api-gateway
+9. dockerize
+10. kubernetes
+11. AWS deployment
 
 ---
 
@@ -144,15 +216,16 @@ Each service:
   - product_db
   - inventory_db
   - order_db
+  - delivery_db
+  - support_db
 
 ---
 
 ## NON-GOALS
 
-- No frontend
-- No advanced auth system
+- No frontend (multiple UIs can exist but not part of system)
 - No real payment integration
-- No unnecessary features (cart, reviews, etc.)
+- No unnecessary features (reviews, recommendations, etc.)
 
 ---
 
@@ -162,6 +235,7 @@ Each service:
 - Inter-service communication
 - Failure handling
 - Concurrency control (inventory)
+- Role-based access control (RBAC)
 - Containerization (Docker)
 - Orchestration (Kubernetes)
 - Deployment (AWS)
@@ -174,6 +248,7 @@ Each service:
 - No overselling under concurrent requests
 - Failures handled gracefully
 - Services independently deployable
+- Role-based access enforced correctly
 - System runs via Docker + Kubernetes
 
 ---
