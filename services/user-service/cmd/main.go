@@ -5,6 +5,8 @@ import (
 
 	"github.com/vishalss1/CartGO/services/user-service/db"
 	"github.com/vishalss1/CartGO/services/user-service/internal/config"
+	"github.com/vishalss1/CartGO/services/user-service/internal/repository"
+	"github.com/vishalss1/CartGO/services/user-service/internal/service"
 )
 
 func main() {
@@ -20,8 +22,15 @@ func main() {
 	}
 	defer conn.Close()
 
-	log.Printf("User-service is running on port %s", cfg.Port)
+	// Initialize repositories
+	userRepo := repository.NewPostgresUserRepository(conn)
+	tokenRepo := repository.NewPostgresRefreshTokenRepository(conn)
 
-	// In a real application, we would start an HTTP server here.
-	// For now, we'll just log that it's running.
+	// Initialize service
+	userService := service.NewUserService(userRepo, tokenRepo, cfg)
+
+	log.Printf("User-service initialized and running on port %s", cfg.Port)
+
+	// In a real application, we would initialize handlers and start an HTTP server here.
+	_ = userService // Avoid unused variable warning
 }
