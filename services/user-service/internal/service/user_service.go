@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/vishalss1/CartGO/services/user-service/internal/auth"
 	"github.com/vishalss1/CartGO/services/user-service/internal/config"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
 	"github.com/vishalss1/CartGO/services/user-service/internal/repository"
@@ -27,9 +26,9 @@ type UserService interface {
 }
 
 type UserServiceImpl struct {
-	userRepo   repository.UserRepository
-	tokenRepo  repository.RefreshTokenRepository
-	config     *config.Config
+	userRepo  repository.UserRepository
+	tokenRepo repository.RefreshTokenRepository
+	config    *config.Config
 }
 
 func NewUserService(userRepo repository.UserRepository, tokenRepo repository.RefreshTokenRepository, cfg *config.Config) UserService {
@@ -99,7 +98,13 @@ func (s *UserServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 	if err != nil {
 		return nil, err
 	}
-	if rt == nil || time.Now().After(rt.ExpiresAt) {
+	if rt == nil {
+		return nil, ErrInvalidToken
+	}
+
+	// Validate token signature and expiry
+	_, err = auth.ValidateToken(refreshToken, s.config.RefreshTokenSecret)
+	if err != nil {
 		return nil, ErrInvalidToken
 	}
 
@@ -109,7 +114,7 @@ func (s *UserServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		return nil, err
 	}
 
-	// Optional: Delete old token for rotation
+	// Delete old token (rotation)
 	_ = s.tokenRepo.DeleteRefreshToken(ctx, refreshToken)
 
 	// Generate new tokens
@@ -121,12 +126,12 @@ func (s *UserServiceImpl) Logout(ctx context.Context, refreshToken string) error
 }
 
 func (s *UserServiceImpl) createAuthResponse(ctx context.Context, user *model.User) (*model.AuthResponse, error) {
-	accessToken, err := s.generateAccessToken(user)
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role, s.config.AccessTokenSecret, s.config.AccessTokenExpiry)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshExpiry, err := s.generateRefreshToken(user)
+	refreshToken, refreshExpiry, err := auth.GenerateRefreshToken(user.ID, s.config.RefreshTokenSecret, s.config.RefreshTokenExpiry)
 	if err != nil {
 		return nil, err
 	}
@@ -142,37 +147,4 @@ func (s *UserServiceImpl) createAuthResponse(ctx context.Context, user *model.Us
 		RefreshToken: refreshToken,
 		User:         *user,
 	}, nil
-}
-
-func (s *UserServiceImpl) generateAccessToken(user *model.User) (string, error) {
-	expiry, err := time.ParseDuration(s.config.AccessTokenExpiry)
-	if err != nil {
-		expiry = time.Minute * 15
-	}
-
-	claims := jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(expiry).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.config.AccessTokenSecret))
-}
-
-func (s *UserServiceImpl) generateRefreshToken(user *model.User) (string, time.Time, error) {
-	expiry, err := time.ParseDuration(s.config.RefreshTokenExpiry)
-	if err != nil {
-		expiry = time.Hour * 24 * 7
-	}
-
-	expiresAt := time.Now().Add(expiry)
-	claims := jwt.MapClaims{
-		"user_id": user.ID,
-		"exp":     expiresAt.Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(s.config.RefreshTokenSecret))
-	return tokenStr, expiresAt, err
 }
