@@ -1,1 +1,10 @@
 go 1.25.4
+
+use (
+	./api-gateway
+	./services/inventory-service
+	./services/order-service
+	./services/payment-service
+	./services/product-service
+	./services/user-service
+)
