@@ -119,3 +119,40 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, user *model.Use
 	user.UpdatedAt = now
 	return nil
 }
+
+func (r *PostgresUserRepository) GetAllUsers(ctx context.Context) ([]*model.User, error) {
+	query := `SELECT id, username, email, role, created_at, updated_at FROM users`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all users: %v", err)
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	for rows.Next() {
+		var user model.User
+		err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.Email,
+			&user.Role,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %v", err)
+		}
+		users = append(users, &user)
+	}
+
+	return users, nil
+}
+
+func (r *PostgresUserRepository) UpdateUserRole(ctx context.Context, userID string, role string) error {
+	query := `UPDATE users SET role = $1, updated_at = $2 WHERE id = $3`
+	_, err := r.db.ExecContext(ctx, query, role, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %v", err)
+	}
+	return nil
+}

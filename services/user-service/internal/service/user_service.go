@@ -23,6 +23,10 @@ type UserService interface {
 	Login(ctx context.Context, req model.LoginRequest) (*model.AuthResponse, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*model.AuthResponse, error)
 	Logout(ctx context.Context, refreshToken string) error
+	ListAllUsers(ctx context.Context) ([]*model.User, error)
+	ChangeUserRole(ctx context.Context, userID string, newRole string) error
+	GetUserByID(ctx context.Context, userID string) (*model.User, error)
+	UpdateProfile(ctx context.Context, userID string, req model.UpdateProfileRequest) (*model.User, error)
 }
 
 type UserServiceImpl struct {
@@ -123,6 +127,49 @@ func (s *UserServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 
 func (s *UserServiceImpl) Logout(ctx context.Context, refreshToken string) error {
 	return s.tokenRepo.DeleteRefreshToken(ctx, refreshToken)
+}
+
+func (s *UserServiceImpl) ListAllUsers(ctx context.Context) ([]*model.User, error) {
+	return s.userRepo.GetAllUsers(ctx)
+}
+
+func (s *UserServiceImpl) ChangeUserRole(ctx context.Context, userID string, newRole string) error {
+	return s.userRepo.UpdateUserRole(ctx, userID, newRole)
+}
+
+func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
+	return s.userRepo.GetUserByID(ctx, userID)
+}
+
+func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID string, req model.UpdateProfileRequest) (*model.User, error) {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	if req.Username != "" {
+		user.Username = req.Username
+	}
+	if req.Email != "" && req.Email != user.Email {
+		existingUser, checkErr := s.userRepo.GetUserByEmail(ctx, req.Email)
+		if checkErr != nil {
+			return nil, checkErr
+		}
+		if existingUser != nil {
+			return nil, ErrUserAlreadyExists
+		}
+		user.Email = req.Email
+	}
+
+	err = s.userRepo.UpdateUser(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 func (s *UserServiceImpl) createAuthResponse(ctx context.Context, user *model.User) (*model.AuthResponse, error) {

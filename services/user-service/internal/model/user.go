@@ -37,3 +37,8 @@ type AuthResponse struct {
 	RefreshToken string `json:"refresh_token"`
 	User         User   `json:"user"`
 }
+
+type UpdateProfileRequest struct {
+	Username string `json:"username,omitempty" validate:"omitempty,min=3,max=50"`
+	Email    string `json:"email,omitempty" validate:"omitempty,email"`
+}

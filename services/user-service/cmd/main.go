@@ -14,6 +14,7 @@ import (
 	"github.com/vishalss1/CartGO/services/user-service/db"
 	"github.com/vishalss1/CartGO/services/user-service/internal/config"
 	"github.com/vishalss1/CartGO/services/user-service/internal/handler"
+	customMiddleware "github.com/vishalss1/CartGO/services/user-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/user-service/internal/repository"
 	"github.com/vishalss1/CartGO/services/user-service/internal/service"
 )
@@ -47,10 +48,25 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api/v1/user", func(r chi.Router) {
+		// Public routes
 		r.Post("/register", userHandler.Register)
 		r.Post("/login", userHandler.Login)
 		r.Post("/refresh", userHandler.Refresh)
 		r.Post("/logout", userHandler.Logout)
+
+		// Protected routes
+		r.Group(func(r chi.Router) {
+			r.Use(customMiddleware.AuthMiddleware(cfg.AccessTokenSecret))
+			r.Get("/me", userHandler.Me)
+			r.Patch("/me", userHandler.UpdateMe)
+
+			// Admin only routes
+			r.Group(func(r chi.Router) {
+				r.Use(customMiddleware.RoleMiddleware("ADMIN"))
+				r.Get("/admin/users", userHandler.AdminListUsers)
+				r.Patch("/admin/users/{id}/role", userHandler.AdminUpdateRole)
+			})
+		})
 	})
 
 	// Setup server
