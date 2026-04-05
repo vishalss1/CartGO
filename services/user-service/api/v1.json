@@ -1,0 +1,59 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO User Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/user/register": {
+      "post": {
+        "summary": "Register a new user",
+        "responses": {
+          "201": { "description": "User created" }
+        }
+      }
+    },
+    "/api/v1/user/login": {
+      "post": {
+        "summary": "User login",
+        "responses": {
+          "200": { "description": "Login successful" }
+        }
+      }
+    },
+    "/api/v1/user/me": {
+      "get": {
+        "summary": "Get current user info",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User info" }
+        }
+      },
+      "patch": {
+        "summary": "Update current user profile",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile updated successfully" }
+        }
+      }
+    },
+    "/api/v1/user/admin/users": {
+      "get": {
+        "summary": "List all users (Admin only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of users" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
