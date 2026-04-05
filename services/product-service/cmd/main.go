@@ -5,6 +5,8 @@ import (
 
 	"github.com/vishalss1/CartGO/services/product-service/db"
 	"github.com/vishalss1/CartGO/services/product-service/internal/config"
+	"github.com/vishalss1/CartGO/services/product-service/internal/repository"
+	"github.com/vishalss1/CartGO/services/product-service/internal/service"
 )
 
 func main() {
@@ -18,5 +20,15 @@ func main() {
 	}
 	defer database.Close()
 
+	// Initialize repository
+	prodRepo := repository.NewPostgresProductRepository(database)
+
+	// Initialize service
+	prodService := service.NewProductService(prodRepo)
+
+	log.Printf("Product service initialized with repository and service layers")
 	log.Printf("Product service starting on port %s", cfg.Port)
+
+	// (Temporary: Placeholder for router and server)
+	_ = prodService
 }
