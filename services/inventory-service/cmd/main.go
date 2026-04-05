@@ -14,6 +14,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/vishalss1/CartGO/services/inventory-service/db"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/config"
+	"github.com/vishalss1/CartGO/services/inventory-service/internal/repository"
+	"github.com/vishalss1/CartGO/services/inventory-service/internal/service"
 )
 
 func main() {
@@ -33,6 +35,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer database.Close()
+
+	// Initialize repository
+	inventoryRepo := repository.NewPostgresInventoryRepository(database)
+
+	// Initialize service
+	inventoryService := service.NewInventoryService(inventoryRepo)
+	_ = inventoryService // Will be used by handler next phase
 
 	// Setup router
 	r := chi.NewRouter()
