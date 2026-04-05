@@ -19,11 +19,11 @@ func NewPostgresProductRepository(db *sql.DB) *PostgresProductRepository {
 
 func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product) (*model.Product, error) {
 	query := `
-		INSERT INTO products (name, description, price, category, stock)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO products (name, description, price, category)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at, updated_at`
 
-	err := r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Category, p.Stock).
+	err := r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Category).
 		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
@@ -35,19 +35,16 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product
 
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*model.Product, error) {
 	query := `
-		SELECT id, name, description, price, category, stock, created_at, updated_at
+		SELECT id, name, description, price, category, created_at, updated_at
 		FROM products
 		WHERE id = $1`
 
 	p := &model.Product{}
 	err := r.db.QueryRowContext(ctx, query, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.Stock, &p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("product not found")
-		}
-		return nil, fmt.Errorf("could not get product: %v", err)
+		return nil, err // Let service handle error translation
 	}
 
 	return p, nil
@@ -77,7 +74,7 @@ func (r *PostgresProductRepository) List(ctx context.Context, filter *model.Prod
 	}
 
 	query := `
-		SELECT id, name, description, price, category, stock, created_at, updated_at
+		SELECT id, name, description, price, category, created_at, updated_at
 		FROM products`
 
 	if len(whereClauses) > 0 {
@@ -86,16 +83,29 @@ func (r *PostgresProductRepository) List(ctx context.Context, filter *model.Prod
 
 	query += " ORDER BY created_at DESC"
 
+	// Add Pagination
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argCount)
+		args = append(args, filter.Limit)
+		argCount++
+	}
+
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argCount)
+		args = append(args, filter.Offset)
+		argCount++
+	}
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not list products: %v", err)
 	}
 	defer rows.Close()
 
-	var products []*model.Product
+	products := []*model.Product{}
 	for rows.Next() {
 		p := &model.Product{}
-		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.Stock, &p.CreatedAt, &p.UpdatedAt)
+		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.CreatedAt, &p.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("could not scan product: %v", err)
 		}
@@ -108,15 +118,15 @@ func (r *PostgresProductRepository) List(ctx context.Context, filter *model.Prod
 func (r *PostgresProductRepository) Update(ctx context.Context, p *model.Product) (*model.Product, error) {
 	query := `
 		UPDATE products
-		SET name = $1, description = $2, price = $3, category = $4, stock = $5, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $6
+		SET name = $1, description = $2, price = $3, category = $4, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $5
 		RETURNING updated_at`
 
-	err := r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Category, p.Stock, p.ID).
+	err := r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Category, p.ID).
 		Scan(&p.UpdatedAt)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update product: %v", err)
+		return nil, err
 	}
 
 	return p, nil
@@ -126,40 +136,16 @@ func (r *PostgresProductRepository) Delete(ctx context.Context, id string) error
 	query := `DELETE FROM products WHERE id = $1`
 	res, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("could not delete product: %v", err)
+		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("could not get rows affected: %v", err)
+		return err
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("product not found")
-	}
-
-	return nil
-}
-
-func (r *PostgresProductRepository) UpdateStock(ctx context.Context, id string, delta int) error {
-	// Delta can be positive (restock) or negative (sale)
-	query := `
-		UPDATE products
-		SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2 AND (stock + $1) >= 0`
-
-	res, err := r.db.ExecContext(ctx, query, delta, id)
-	if err != nil {
-		return fmt.Errorf("could not update stock: %v", err)
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("could not get rows affected: %v", err)
-	}
-
-	if rows == 0 {
-		return fmt.Errorf("stock update failed: check product existence and sufficient stock")
+		return sql.ErrNoRows
 	}
 
 	return nil

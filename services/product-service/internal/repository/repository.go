@@ -12,5 +12,4 @@ type ProductRepository interface {
 	List(ctx context.Context, filter *model.ProductFilter) ([]*model.Product, error)
 	Update(ctx context.Context, product *model.Product) (*model.Product, error)
 	Delete(ctx context.Context, id string) error
-	UpdateStock(ctx context.Context, id string, delta int) error
 }
