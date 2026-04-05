@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/vishalss1/CartGO/services/inventory-service/db"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/config"
+	"github.com/vishalss1/CartGO/services/inventory-service/internal/handler"
+	customMiddleware "github.com/vishalss1/CartGO/services/inventory-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/repository"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/service"
 )
@@ -41,7 +42,9 @@ func main() {
 
 	// Initialize service
 	inventoryService := service.NewInventoryService(inventoryRepo)
-	_ = inventoryService // Will be used by handler next phase
+
+	// Initialize handler
+	inventoryHandler := handler.NewInventoryHandler(inventoryService, logger)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -52,14 +55,35 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(); err != nil {
 			logger.Error("Health check failed: DB down", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "DB connectivity lost"})
+			handler.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "DB connectivity lost")
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "OK"})
+		handler.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+	})
+
+	// API v1 Routes
+	r.Route("/api/v1/inventory", func(r chi.Router) {
+		// Public route (via Gateway)
+		r.Get("/{product_id}", inventoryHandler.GetInventory)
+
+		// Protected routes (X-User-Role required)
+		r.Group(func(r chi.Router) {
+			r.Use(customMiddleware.AuthMiddleware)
+
+			// Warehouse Staff / Admin mutations
+			r.Group(func(r chi.Router) {
+				r.Use(customMiddleware.RoleMiddleware("WAREHOUSE_STAFF", "ADMIN"))
+				r.Post("/{product_id}/adjust", inventoryHandler.AdjustStock)
+			})
+
+			// Service Order / Admin mutations
+			r.Group(func(r chi.Router) {
+				r.Use(customMiddleware.RoleMiddleware("SERVICE_ORDER", "ADMIN"))
+				r.Post("/{product_id}/reserve", inventoryHandler.ReserveStock)
+				r.Post("/{product_id}/release", inventoryHandler.ReleaseStock)
+				r.Post("/{product_id}/commit", inventoryHandler.CommitStock)
+			})
+		})
 	})
 
 	// Setup server

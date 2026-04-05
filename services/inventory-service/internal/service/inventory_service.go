@@ -14,14 +14,15 @@ var (
 	ErrNotFound          = errors.New("inventory record not found")
 	ErrConflict          = errors.New("concurrent update conflict, please retry")
 	ErrInternal          = errors.New("internal server error")
+	ErrInvalidState      = errors.New("invalid reservation state for this operation")
 )
 
 type InventoryService interface {
 	GetInventory(ctx context.Context, productID string) (*model.InventoryResponse, error)
 	AdjustStock(ctx context.Context, productID string, totalStock int) error
-	ReserveStock(ctx context.Context, productID string, quantity int) error
-	ReleaseStock(ctx context.Context, productID string, quantity int) error
-	CommitStock(ctx context.Context, productID string, quantity int) error
+	ReserveStock(ctx context.Context, productID string, orderID string, quantity int) error
+	ReleaseStock(ctx context.Context, orderID string) error
+	CommitStock(ctx context.Context, orderID string) error
 }
 
 type inventoryService struct {
@@ -48,7 +49,6 @@ func (s *inventoryService) AdjustStock(ctx context.Context, productID string, to
 	inv, err := s.repo.GetByProductID(ctx, productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			// Create initial record if it doesn't exist
 			_, err = s.repo.Upsert(ctx, &model.Inventory{
 				ProductID: productID,
 				Stock:     totalStock,
@@ -73,7 +73,7 @@ func (s *inventoryService) AdjustStock(ctx context.Context, productID string, to
 	return nil
 }
 
-func (s *inventoryService) ReserveStock(ctx context.Context, productID string, quantity int) error {
+func (s *inventoryService) ReserveStock(ctx context.Context, productID string, orderID string, quantity int) error {
 	inv, err := s.repo.GetByProductID(ctx, productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -86,30 +86,11 @@ func (s *inventoryService) ReserveStock(ctx context.Context, productID string, q
 		return ErrInsufficientStock
 	}
 
-	err = s.repo.Reserve(ctx, productID, quantity, inv.Version)
+	err = s.repo.Reserve(ctx, productID, orderID, quantity, inv.Version)
 	if err != nil {
-		if errors.Is(err, repository.ErrConflict) {
-			// This could also mean insufficient stock if the update failed due to the (stock - reserved) check,
-			// but we return ErrConflict to trigger a retry which will then hit ErrInsufficientStock.
-			return ErrConflict
+		if errors.Is(err, repository.ErrIdempotent) {
+			return nil // Already reserved, success
 		}
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	return nil
-}
-
-func (s *inventoryService) ReleaseStock(ctx context.Context, productID string, quantity int) error {
-	inv, err := s.repo.GetByProductID(ctx, productID)
-	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	err = s.repo.Release(ctx, productID, quantity, inv.Version)
-	if err != nil {
 		if errors.Is(err, repository.ErrConflict) {
 			return ErrConflict
 		}
@@ -119,8 +100,8 @@ func (s *inventoryService) ReleaseStock(ctx context.Context, productID string, q
 	return nil
 }
 
-func (s *inventoryService) CommitStock(ctx context.Context, productID string, quantity int) error {
-	inv, err := s.repo.GetByProductID(ctx, productID)
+func (s *inventoryService) ReleaseStock(ctx context.Context, orderID string) error {
+	res, err := s.repo.GetReservation(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return ErrNotFound
@@ -128,10 +109,52 @@ func (s *inventoryService) CommitStock(ctx context.Context, productID string, qu
 		return fmt.Errorf("%w: %v", ErrInternal, err)
 	}
 
-	err = s.repo.Commit(ctx, productID, quantity, inv.Version)
+	inv, err := s.repo.GetByProductID(ctx, res.ProductID.String())
 	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInternal, err)
+	}
+
+	err = s.repo.Release(ctx, orderID, inv.Version)
+	if err != nil {
+		if errors.Is(err, repository.ErrIdempotent) {
+			return nil
+		}
 		if errors.Is(err, repository.ErrConflict) {
 			return ErrConflict
+		}
+		if errors.Is(err, repository.ErrInvalidState) {
+			return ErrInvalidState
+		}
+		return fmt.Errorf("%w: %v", ErrInternal, err)
+	}
+
+	return nil
+}
+
+func (s *inventoryService) CommitStock(ctx context.Context, orderID string) error {
+	res, err := s.repo.GetReservation(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("%w: %v", ErrInternal, err)
+	}
+
+	inv, err := s.repo.GetByProductID(ctx, res.ProductID.String())
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInternal, err)
+	}
+
+	err = s.repo.Commit(ctx, orderID, inv.Version)
+	if err != nil {
+		if errors.Is(err, repository.ErrIdempotent) {
+			return nil
+		}
+		if errors.Is(err, repository.ErrConflict) {
+			return ErrConflict
+		}
+		if errors.Is(err, repository.ErrInvalidState) {
+			return ErrInvalidState
 		}
 		return fmt.Errorf("%w: %v", ErrInternal, err)
 	}
