@@ -1,0 +1,73 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Product Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "Service is healthy" },
+          "500": { "description": "DB connection lost" }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "summary": "List products (Paginated)",
+        "responses": {
+          "200": { "description": "List of products" }
+        }
+      },
+      "post": {
+        "summary": "Create a new product (Admin only)",
+        "security": [{ "XUserRole": [] }],
+        "responses": {
+          "201": { "description": "Product created" },
+          "401": { "description": "Missing X-User-Role header" },
+          "403": { "description": "Unauthorized role" }
+        }
+      }
+    },
+    "/api/v1/products/{id}": {
+      "parameters": [
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+      ],
+      "get": {
+        "summary": "Get product by ID",
+        "responses": {
+          "200": { "description": "Product details" },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "patch": {
+        "summary": "Update product (Admin only)",
+        "security": [{ "XUserRole": [] }],
+        "responses": {
+          "200": { "description": "Product updated" },
+          "400": { "description": "Invalid input" },
+          "404": { "description": "Product not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete product (Admin only)",
+        "security": [{ "XUserRole": [] }],
+        "responses": {
+          "200": { "description": "Product deleted successfully" },
+          "404": { "description": "Product not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "XUserRole": {
+        "type": "apiKey",
+        "name": "X-User-Role",
+        "in": "header"
+      }
+    }
+  }
+}
