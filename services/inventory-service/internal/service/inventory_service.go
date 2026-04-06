@@ -101,21 +101,11 @@ func (s *inventoryService) ReserveStock(ctx context.Context, productID string, o
 }
 
 func (s *inventoryService) ReleaseStock(ctx context.Context, orderID string) error {
-	res, err := s.repo.GetReservation(ctx, orderID)
+	err := s.repo.Release(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return ErrNotFound
 		}
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	inv, err := s.repo.GetByProductID(ctx, res.ProductID.String())
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	err = s.repo.Release(ctx, orderID, inv.Version)
-	if err != nil {
 		if errors.Is(err, repository.ErrIdempotent) {
 			return nil
 		}
@@ -132,21 +122,11 @@ func (s *inventoryService) ReleaseStock(ctx context.Context, orderID string) err
 }
 
 func (s *inventoryService) CommitStock(ctx context.Context, orderID string) error {
-	res, err := s.repo.GetReservation(ctx, orderID)
+	err := s.repo.Commit(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return ErrNotFound
 		}
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	inv, err := s.repo.GetByProductID(ctx, res.ProductID.String())
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInternal, err)
-	}
-
-	err = s.repo.Commit(ctx, orderID, inv.Version)
-	if err != nil {
 		if errors.Is(err, repository.ErrIdempotent) {
 			return nil
 		}

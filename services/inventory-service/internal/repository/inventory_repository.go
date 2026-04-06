@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/model"
 )
 
@@ -62,24 +61,37 @@ func (r *PostgresInventoryRepository) Upsert(ctx context.Context, inv *model.Inv
 	return inv, nil
 }
 
-func (r *PostgresInventoryRepository) GetReservation(ctx context.Context, orderID string) (*model.Reservation, error) {
+func (r *PostgresInventoryRepository) GetReservations(ctx context.Context, orderID string) ([]*model.Reservation, error) {
 	query := `
 		SELECT order_id, product_id, quantity, status, created_at, updated_at
 		FROM reservations
 		WHERE order_id = $1`
 
-	res := &model.Reservation{}
-	err := r.db.QueryRowContext(ctx, query, orderID).
-		Scan(&res.OrderID, &res.ProductID, &res.Quantity, &res.Status, &res.CreatedAt, &res.UpdatedAt)
-
+	rows, err := r.db.QueryContext(ctx, query, orderID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+		return nil, fmt.Errorf("could not query reservations: %v", err)
+	}
+	defer rows.Close()
+
+	var reservations []*model.Reservation
+	for rows.Next() {
+		res := &model.Reservation{}
+		err := rows.Scan(&res.OrderID, &res.ProductID, &res.Quantity, &res.Status, &res.CreatedAt, &res.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("could not scan reservation: %v", err)
 		}
-		return nil, fmt.Errorf("could not get reservation: %v", err)
+		reservations = append(reservations, res)
 	}
 
-	return res, nil
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(reservations) == 0 {
+		return nil, ErrNotFound
+	}
+
+	return reservations, nil
 }
 
 func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID string, orderID string, quantity int, currentVersion int) error {
@@ -89,9 +101,9 @@ func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID str
 	}
 	defer tx.Rollback()
 
-	// Check for existing reservation (Idempotency)
+	// Check for existing reservation for this SPECIFIC product in this order (Idempotency)
 	var existingStatus string
-	err = tx.QueryRowContext(ctx, "SELECT status FROM reservations WHERE order_id = $1", orderID).Scan(&existingStatus)
+	err = tx.QueryRowContext(ctx, "SELECT status FROM reservations WHERE order_id = $1 AND product_id = $2", orderID, productID).Scan(&existingStatus)
 	if err == nil {
 		return ErrIdempotent
 	} else if !errors.Is(err, sql.ErrNoRows) {
@@ -129,52 +141,63 @@ func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID str
 	return tx.Commit()
 }
 
-func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID string, inventoryVersion int) error {
+func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// 1. Get reservation details
-	var productID uuid.UUID
-	var quantity int
-	var status string
-	err = tx.QueryRowContext(ctx, "SELECT product_id, quantity, status FROM reservations WHERE order_id = $1", orderID).
-		Scan(&productID, &quantity, &status)
+	// 1. Get ALL pending reservations for this order
+	query := "SELECT product_id, quantity, status FROM reservations WHERE order_id = $1 FOR UPDATE"
+	rows, err := tx.QueryContext(ctx, query, orderID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
+		return err
+	}
+	defer rows.Close()
+
+	type item struct {
+		productID string
+		quantity  int
+		status    string
+	}
+	var items []item
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.productID, &it.quantity, &it.status); err != nil {
+			return err
 		}
-		return err
+		items = append(items, it)
 	}
 
-	if status == "RELEASED" {
-		return ErrIdempotent
-	}
-	if status != "PENDING" {
-		return ErrInvalidState
+	if len(items) == 0 {
+		return ErrNotFound
 	}
 
-	// 2. Update inventory
-	queryInv := `
-		UPDATE inventory
-		SET reserved = reserved - $1, version = version + 1, updated_at = NOW()
-		WHERE product_id = $2 AND version = $3`
-	res, err := tx.ExecContext(ctx, queryInv, quantity, productID, inventoryVersion)
-	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return ErrConflict
+	// 2. Process each item
+	for _, it := range items {
+		if it.status == "RELEASED" {
+			continue
+		}
+		if it.status != "PENDING" {
+			return fmt.Errorf("%w: product %s is in state %s", ErrInvalidState, it.productID, it.status)
+		}
+
+		// Update inventory (we don't check version here to keep it simple across multiple items, 
+		// but we could fetch versions first if needed. Absolute subtraction of reserved is safe 
+		// as long as we're in a transaction and used FOR UPDATE above)
+		queryInv := `
+			UPDATE inventory
+			SET reserved = reserved - $1, version = version + 1, updated_at = NOW()
+			WHERE product_id = $2`
+		_, err := tx.ExecContext(ctx, queryInv, it.quantity, it.productID)
+		if err != nil {
+			return err
+		}
 	}
 
-	// 3. Update reservation status
-	_, err = tx.ExecContext(ctx, "UPDATE reservations SET status = 'RELEASED', updated_at = NOW() WHERE order_id = $1", orderID)
+	// 3. Update all reservation statuses for the order
+	_, err = tx.ExecContext(ctx, "UPDATE reservations SET status = 'RELEASED', updated_at = NOW() WHERE order_id = $1 AND status = 'PENDING'", orderID)
 	if err != nil {
 		return err
 	}
@@ -182,52 +205,61 @@ func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID strin
 	return tx.Commit()
 }
 
-func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID string, inventoryVersion int) error {
+func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// 1. Get reservation details
-	var productID uuid.UUID
-	var quantity int
-	var status string
-	err = tx.QueryRowContext(ctx, "SELECT product_id, quantity, status FROM reservations WHERE order_id = $1", orderID).
-		Scan(&productID, &quantity, &status)
+	// 1. Get ALL pending reservations for this order
+	query := "SELECT product_id, quantity, status FROM reservations WHERE order_id = $1 FOR UPDATE"
+	rows, err := tx.QueryContext(ctx, query, orderID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
+		return err
+	}
+	defer rows.Close()
+
+	type item struct {
+		productID string
+		quantity  int
+		status    string
+	}
+	var items []item
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.productID, &it.quantity, &it.status); err != nil {
+			return err
 		}
-		return err
+		items = append(items, it)
 	}
 
-	if status == "COMMITTED" {
-		return ErrIdempotent
-	}
-	if status != "PENDING" {
-		return ErrInvalidState
+	if len(items) == 0 {
+		return ErrNotFound
 	}
 
-	// 2. Update inventory (absolute deduction)
-	queryInv := `
-		UPDATE inventory
-		SET stock = stock - $1, reserved = reserved - $1, version = version + 1, updated_at = NOW()
-		WHERE product_id = $2 AND version = $3`
-	res, err := tx.ExecContext(ctx, queryInv, quantity, productID, inventoryVersion)
-	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return ErrConflict
+	// 2. Process each item
+	for _, it := range items {
+		if it.status == "COMMITTED" {
+			continue
+		}
+		if it.status != "PENDING" {
+			return fmt.Errorf("%w: product %s is in state %s", ErrInvalidState, it.productID, it.status)
+		}
+
+		// Update inventory (deduct from both stock and reserved)
+		queryInv := `
+			UPDATE inventory
+			SET stock = stock - $1, reserved = reserved - $1, version = version + 1, updated_at = NOW()
+			WHERE product_id = $2`
+		_, err := tx.ExecContext(ctx, queryInv, it.quantity, it.productID)
+		if err != nil {
+			return err
+		}
 	}
 
-	// 3. Update reservation status
-	_, err = tx.ExecContext(ctx, "UPDATE reservations SET status = 'COMMITTED', updated_at = NOW() WHERE order_id = $1", orderID)
+	// 3. Update all reservation statuses for the order
+	_, err = tx.ExecContext(ctx, "UPDATE reservations SET status = 'COMMITTED', updated_at = NOW() WHERE order_id = $1 AND status = 'PENDING'", orderID)
 	if err != nil {
 		return err
 	}

@@ -80,8 +80,8 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(customMiddleware.RoleMiddleware("SERVICE_ORDER", "ADMIN"))
 				r.Post("/{product_id}/reserve", inventoryHandler.ReserveStock)
-				r.Post("/{product_id}/release", inventoryHandler.ReleaseStock)
-				r.Post("/{product_id}/commit", inventoryHandler.CommitStock)
+				r.Post("/release", inventoryHandler.ReleaseStock)
+				r.Post("/commit", inventoryHandler.CommitStock)
 			})
 		})
 	})

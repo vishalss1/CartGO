@@ -11,12 +11,12 @@ type InventoryRepository interface {
 	Upsert(ctx context.Context, inv *model.Inventory) (*model.Inventory, error)
 	
 	// Reservation management
-	GetReservation(ctx context.Context, orderID string) (*model.Reservation, error)
+	GetReservations(ctx context.Context, orderID string) ([]*model.Reservation, error)
 	
 	// Atomic operations with idempotency support
 	Reserve(ctx context.Context, productID string, orderID string, quantity int, currentVersion int) error
-	Release(ctx context.Context, orderID string, inventoryVersion int) error
-	Commit(ctx context.Context, orderID string, inventoryVersion int) error
+	Release(ctx context.Context, orderID string) error
+	Commit(ctx context.Context, orderID string) error
 	
 	// Direct stock update (for warehouse staff)
 	UpdateStock(ctx context.Context, productID string, totalStock int, currentVersion int) error
