@@ -2,6 +2,7 @@ go 1.25.4
 
 use (
 	./api-gateway
+	./services/delivery-service
 	./services/inventory-service
 	./services/order-service
 	./services/payment-service

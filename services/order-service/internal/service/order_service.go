@@ -20,7 +20,7 @@ var (
 )
 
 type OrderService interface {
-	CreateOrder(ctx context.Context, req *model.CreateOrderRequest) (*model.Order, error)
+	CreateOrder(ctx context.Context, userID uuid.UUID, req *model.CreateOrderRequest) (*model.Order, error)
 	GetOrder(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error)
 }
@@ -46,10 +46,10 @@ func NewOrderService(
 	}
 }
 
-func (s *orderService) CreateOrder(ctx context.Context, req *model.CreateOrderRequest) (*model.Order, error) {
+func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *model.CreateOrderRequest) (*model.Order, error) {
 	// 1. Initial Order Setup (PENDING)
 	order := &model.Order{
-		UserID: req.UserID,
+		UserID: userID,
 		Status: model.OrderStatusPending,
 	}
 

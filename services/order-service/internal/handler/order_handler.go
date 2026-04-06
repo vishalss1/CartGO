@@ -9,8 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/services/order-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/order-service/internal/model"
 	"github.com/vishalss1/CartGO/services/order-service/internal/service"
+	"github.com/vishalss1/CartGO/services/order-service/internal/util"
 )
 
 type OrderHandler struct {
@@ -30,29 +32,42 @@ func NewOrderHandler(s service.OrderService, l *slog.Logger) *OrderHandler {
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
 		return
 	}
 
-	order, err := h.service.CreateOrder(r.Context(), &req)
+	// Extract UserID from context (trusted source)
+	userIDStr := middleware.GetUserID(r.Context())
+	if userIDStr == "" {
+		util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User identity not found")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid User ID format in token")
+		return
+	}
+
+	order, err := h.service.CreateOrder(r.Context(), userID, &req)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
 	}
 
-	JSONResponse(w, http.StatusCreated, order)
+	util.JSONResponse(w, http.StatusCreated, order)
 }
 
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid order ID format")
+		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid order ID format")
 		return
 	}
 
@@ -62,14 +77,14 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, order)
+	util.JSONResponse(w, http.StatusOK, order)
 }
 
 func (h *OrderHandler) GetOrdersByUserID(w http.ResponseWriter, r *http.Request) {
 	userIDStr := chi.URLParam(r, "user_id")
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid user ID format")
+		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid user ID format")
 		return
 	}
 
@@ -79,7 +94,7 @@ func (h *OrderHandler) GetOrdersByUserID(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, orders)
+	util.JSONResponse(w, http.StatusOK, orders)
 }
 
 func (h *OrderHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
@@ -107,5 +122,5 @@ func (h *OrderHandler) handleError(w http.ResponseWriter, r *http.Request, err e
 	}
 
 	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
-	ErrorJSONResponse(w, code, errCode, msg)
+	util.ErrorJSONResponse(w, code, errCode, msg)
 }

@@ -1,15 +1,9 @@
-package handler
+package util
 
 import (
 	"encoding/json"
 	"net/http"
 )
-
-type APIResponse struct {
-	Status  string      `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
-}
 
 type ErrorResponse struct {
 	ErrorCode string `json:"error_code"`

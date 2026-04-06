@@ -11,11 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/vishalss1/CartGO/services/payment-service/db"
-	"github.com/vishalss1/CartGO/services/payment-service/internal/config"
-	"github.com/vishalss1/CartGO/services/payment-service/internal/handler"
-	"github.com/vishalss1/CartGO/services/payment-service/internal/repository/postgres"
-	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
+	"github.com/vishalss1/CartGO/services/delivery-service/db"
+	"github.com/vishalss1/CartGO/services/delivery-service/internal/config"
+	"github.com/vishalss1/CartGO/services/delivery-service/internal/handler"
+	deliveryMiddleware "github.com/vishalss1/CartGO/services/delivery-service/internal/middleware"
+	"github.com/vishalss1/CartGO/services/delivery-service/internal/repository/postgres"
+	"github.com/vishalss1/CartGO/services/delivery-service/internal/service"
 )
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	logger.Info("Starting payment-service...")
+	logger.Info("Starting delivery-service...")
 
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -37,23 +38,23 @@ func main() {
 	defer conn.Close()
 
 	// Initialize repository
-	paymentRepo := postgres.NewPostgresPaymentRepository(conn)
+	deliveryRepo := postgres.NewPostgresDeliveryRepository(conn)
 
 	// Initialize service
-	paymentService := service.NewPaymentService(paymentRepo, logger)
+	deliveryService := service.NewDeliveryService(deliveryRepo, logger)
 
 	// Initialize handler
-	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
+	deliveryHandler := handler.NewDeliveryHandler(deliveryService, logger)
 
 	// Setup router
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(deliveryMiddleware.AuthMiddleware)
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
-			logger.Error("Health check failed", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -62,8 +63,19 @@ func main() {
 	})
 
 	// API v1 Routes
-	r.Route("/api/v1/payments", func(r chi.Router) {
-		r.Post("/", paymentHandler.ProcessPayment)
+	r.Route("/api/v1/deliveries", func(r chi.Router) {
+		// Internal/Admin role to create a delivery
+		r.With(deliveryMiddleware.RoleMiddleware("CUSTOMER", "ADMIN", "SERVICE_ORDER")).Post("/", deliveryHandler.CreateDelivery)
+
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", deliveryHandler.GetDelivery)
+
+			// Restrict status updates to DELIVERY_PARTNER and ADMIN
+			r.With(deliveryMiddleware.RoleMiddleware("DELIVERY_PARTNER", "ADMIN")).
+				Patch("/status", deliveryHandler.UpdateDeliveryStatus)
+		})
+
+		r.Get("/partner/{partner_id}", deliveryHandler.ListDeliveriesByPartner)
 	})
 
 	// Setup server
@@ -76,7 +88,7 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("Payment-service is running", "port", cfg.Port)
+		logger.Info("Delivery-service is running", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Listen and serve failed", "error", err)
 			os.Exit(1)
@@ -87,7 +99,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down payment-service...")
+	logger.Info("Shutting down delivery-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -95,5 +107,5 @@ func main() {
 		logger.Error("Server forced to shutdown", "error", err)
 	}
 
-	logger.Info("Payment-service stopped.")
+	logger.Info("Delivery-service stopped.")
 }

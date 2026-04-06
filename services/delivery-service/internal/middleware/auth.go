@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/vishalss1/CartGO/services/order-service/internal/util"
+	"github.com/vishalss1/CartGO/services/delivery-service/internal/util"
 )
 
 type contextKey string
@@ -16,7 +16,6 @@ const (
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// IMPORTANT: This header MUST be injected by a trusted upstream (API Gateway).
 		role := r.Header.Get("X-User-Role")
 		userID := r.Header.Get("X-User-ID")
 
@@ -39,11 +38,16 @@ func GetUserID(ctx context.Context) string {
 	return userID
 }
 
+func GetRole(ctx context.Context) string {
+	role, _ := ctx.Value(RoleContextKey).(string)
+	return role
+}
+
 func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			role, ok := r.Context().Value(RoleContextKey).(string)
-			if !ok {
+			role := GetRole(r.Context())
+			if role == "" {
 				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User role not found in context")
 				return
 			}

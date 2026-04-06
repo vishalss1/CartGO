@@ -18,6 +18,7 @@ import (
 	customMiddleware "github.com/vishalss1/CartGO/services/order-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/order-service/internal/repository/postgres"
 	"github.com/vishalss1/CartGO/services/order-service/internal/service"
+	"github.com/vishalss1/CartGO/services/order-service/internal/util"
 )
 
 func main() {
@@ -60,10 +61,10 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
 			logger.Error("Health check failed", "error", err)
-			handler.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "Database is down")
+			util.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "Database is down")
 			return
 		}
-		handler.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+		util.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
 	})
 
 	// API v1 Routes
