@@ -1,0 +1,11 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID UNIQUE NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL CHECK (amount > 0),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('SUCCESS', 'FAILURE')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);

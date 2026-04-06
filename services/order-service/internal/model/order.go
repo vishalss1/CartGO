@@ -33,8 +33,7 @@ type OrderItem struct {
 }
 
 type CreateOrderRequest struct {
-	UserID uuid.UUID          `json:"user_id" validate:"required"`
-	Items  []CreateOrderItem `json:"items" validate:"required,dive"`
+	Items []CreateOrderItem `json:"items" validate:"required,dive"`
 }
 
 type CreateOrderItem struct {
