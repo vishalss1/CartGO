@@ -7,5 +7,6 @@ use (
 	./services/order-service
 	./services/payment-service
 	./services/product-service
+	./services/support-service
 	./services/user-service
 )
