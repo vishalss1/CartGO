@@ -9,7 +9,6 @@ import (
 
 type Config struct {
 	Port                string
-	JWTSecret           string
 	UserServiceURL      string
 	ProductServiceURL   string
 	InventoryServiceURL string
@@ -28,7 +27,6 @@ func LoadConfig() *Config {
 
 	return &Config{
 		Port:                getEnv("PORT", "8080"),
-		JWTSecret:           getEnv("JWT_SECRET", ""),
 		UserServiceURL:      getEnv("USER_SERVICE_URL", ""),
 		ProductServiceURL:   getEnv("PRODUCT_SERVICE_URL", ""),
 		InventoryServiceURL: getEnv("INVENTORY_SERVICE_URL", ""),

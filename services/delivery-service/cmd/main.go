@@ -50,7 +50,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(deliveryMiddleware.AuthMiddleware)
+	r.Use(deliveryMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -107,7 +107,7 @@ func (s *UserServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 	}
 
 	// Validate token signature and expiry
-	_, err = auth.ValidateToken(refreshToken, s.config.RefreshTokenSecret)
+	_, err = auth.ValidateToken(refreshToken, s.config.JWTPublicKeys)
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -173,12 +173,12 @@ func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID string, req 
 }
 
 func (s *UserServiceImpl) createAuthResponse(ctx context.Context, user *model.User) (*model.AuthResponse, error) {
-	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role, s.config.AccessTokenSecret, s.config.AccessTokenExpiry)
+	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role, s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.AccessTokenExpiry)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshExpiry, err := auth.GenerateRefreshToken(user.ID, s.config.RefreshTokenSecret, s.config.RefreshTokenExpiry)
+	refreshToken, refreshExpiry, err := auth.GenerateRefreshToken(user.ID, s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.RefreshTokenExpiry)
 	if err != nil {
 		return nil, err
 	}

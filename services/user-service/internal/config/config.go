@@ -5,13 +5,15 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/vishalss1/CartGO/pkg/auth"
 )
 
 type Config struct {
 	DatabaseURL        string
 	Port               string
-	AccessTokenSecret  string
-	RefreshTokenSecret string
+	JWTPrivateKey      string
+	JWTPrivateKeyID    string
+	JWTPublicKeys      map[string]string
 	AccessTokenExpiry  string
 	RefreshTokenExpiry string
 }
@@ -25,16 +27,6 @@ func LoadConfig() *Config {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL is not set")
-	}
-
-	accessTokenSecret := os.Getenv("ACCESS_TOKEN_SECRET")
-	if accessTokenSecret == "" {
-		log.Fatal("ACCESS_TOKEN_SECRET is not set")
-	}
-
-	refreshTokenSecret := os.Getenv("REFRESH_TOKEN_SECRET")
-	if refreshTokenSecret == "" {
-		log.Fatal("REFRESH_TOKEN_SECRET is not set")
 	}
 
 	accessTokenExpiry := os.Getenv("ACCESS_TOKEN_EXPIRY")
@@ -52,11 +44,46 @@ func LoadConfig() *Config {
 		port = "8081"
 	}
 
+	keysDir := os.Getenv("KEYS_DIR")
+	if keysDir == "" {
+		keysDir = "keys"
+		if _, err := os.Stat(keysDir); os.IsNotExist(err) {
+			if _, err := os.Stat("../../keys"); err == nil {
+				keysDir = "../../keys"
+			}
+		}
+	}
+
+	jwtPrivateKey := os.Getenv("JWT_PRIVATE_KEY")
+	jwtPrivateKeyID := os.Getenv("JWT_PRIVATE_KEY_ID")
+
+	if jwtPrivateKey == "" {
+		privateKeyPath := keysDir + "/jwt_private.pem"
+		log.Printf("JWT_PRIVATE_KEY not set in env, checking for %s\n", privateKeyPath)
+		data, err := os.ReadFile(privateKeyPath)
+		if err == nil {
+			jwtPrivateKey = string(data)
+			if jwtPrivateKeyID == "" {
+				jwtPrivateKeyID = "jwt_public" // matched the public file base name natively for standard tests
+			}
+		}
+	}
+	if jwtPrivateKeyID == "" {
+		jwtPrivateKeyID = "default-kid"
+	}
+
+	keysJSON := os.Getenv("JWT_PUBLIC_KEYS")
+	publicKeys, err := auth.LoadPublicKeys(keysJSON, keysDir)
+	if err != nil {
+		log.Printf("Warning: Failed to load public keys: %v\n", err)
+	}
+
 	return &Config{
 		DatabaseURL:        databaseURL,
 		Port:               port,
-		AccessTokenSecret:  accessTokenSecret,
-		RefreshTokenSecret: refreshTokenSecret,
+		JWTPrivateKey:      jwtPrivateKey,
+		JWTPrivateKeyID:    jwtPrivateKeyID,
+		JWTPublicKeys:      publicKeys,
 		AccessTokenExpiry:  accessTokenExpiry,
 		RefreshTokenExpiry: refreshTokenExpiry,
 	}

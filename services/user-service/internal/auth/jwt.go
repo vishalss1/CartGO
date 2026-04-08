@@ -5,68 +5,70 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	pkgAuth "github.com/vishalss1/CartGO/pkg/auth"
 )
 
-type TokenClaims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role,omitempty"`
-	jwt.RegisteredClaims
-}
+func GenerateAccessToken(userID, role, privateKeyPEM, kid, expiryStr string) (string, error) {
+	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKeyPEM))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse private key: %v", err)
+	}
 
-func GenerateAccessToken(userID, role, secret, expiryStr string) (string, error) {
 	expiry, err := time.ParseDuration(expiryStr)
 	if err != nil {
 		expiry = 15 * time.Minute
 	}
 
-	claims := TokenClaims{
+	claims := pkgAuth.TokenClaims{
 		UserID: userID,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			Issuer:    "cartgo-user-service",
+			Audience:  jwt.ClaimStrings{"cartgo-api"},
+			NotBefore: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = kid
+
+	return token.SignedString(key)
 }
 
-func GenerateRefreshToken(userID, secret, expiryStr string) (string, time.Time, error) {
+func GenerateRefreshToken(userID, privateKeyPEM, kid, expiryStr string) (string, time.Time, error) {
+	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKeyPEM))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to parse private key: %v", err)
+	}
+
 	expiry, err := time.ParseDuration(expiryStr)
 	if err != nil {
 		expiry = 7 * 24 * time.Hour
 	}
 
 	expiresAt := time.Now().Add(expiry)
-	claims := TokenClaims{
+	claims := pkgAuth.TokenClaims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			Issuer:    "cartgo-user-service",
+			Audience:  jwt.ClaimStrings{"cartgo-api"},
+			NotBefore: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, err := token.SignedString([]byte(secret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = kid
+	
+	tokenStr, err := token.SignedString(key)
 	return tokenStr, expiresAt, err
 }
 
-func ValidateToken(tokenStr, secret string) (*TokenClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(secret), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*TokenClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, fmt.Errorf("invalid token")
+func ValidateToken(tokenStr string, publicKeys map[string]string) (*pkgAuth.TokenClaims, error) {
+	return pkgAuth.ValidateToken(tokenStr, publicKeys, "cartgo-api")
 }

@@ -9,4 +9,5 @@ use (
 	./services/product-service
 	./services/support-service
 	./services/user-service
+	./pkg
 )

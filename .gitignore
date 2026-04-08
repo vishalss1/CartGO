@@ -1,1 +1,6 @@
 .env
+keys
+test*
+docker-compose.yml
+env*
+deployments/terraform

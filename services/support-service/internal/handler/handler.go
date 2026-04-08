@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/vishalss1/CartGO/services/support-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
 	"github.com/vishalss1/CartGO/services/support-service/internal/service"
 )
@@ -34,7 +35,7 @@ func (h *Handler) respondWithJSON(w http.ResponseWriter, code int, payload inter
 }
 
 func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
+	userID := middleware.GetUserID(r.Context())
 	if userID == "" {
 		h.respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing User ID header")
 		return
@@ -64,8 +65,8 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTickets(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
+	userID := middleware.GetUserID(r.Context())
+	role := middleware.GetRole(r.Context())
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit == 0 {
@@ -107,8 +108,8 @@ func (h *Handler) GetTicket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
 	ticketID := chi.URLParam(r, "id")
-	userID := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
+	userID := middleware.GetUserID(r.Context())
+	role := middleware.GetRole(r.Context())
 
 	var req struct {
 		Content string `json:"content"`
@@ -129,8 +130,8 @@ func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	ticketID := chi.URLParam(r, "id")
-	userID := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
+	userID := middleware.GetUserID(r.Context())
+	role := middleware.GetRole(r.Context())
 
 	var req struct {
 		Status model.TicketStatus `json:"status"`
@@ -151,8 +152,8 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 	ticketID := chi.URLParam(r, "id")
-	userID := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
+	userID := middleware.GetUserID(r.Context())
+	role := middleware.GetRole(r.Context())
 
 	var req struct {
 		AgentID string `json:"agent_id"`
@@ -173,8 +174,8 @@ func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
 	ticketID := chi.URLParam(r, "id")
-	userID := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
+	userID := middleware.GetUserID(r.Context())
+	role := middleware.GetRole(r.Context())
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit == 0 {

@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strings"
 
+	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/vishalss1/CartGO/services/order-service/internal/util"
 )
 
@@ -14,24 +16,33 @@ const (
 	UserIDContextKey contextKey = "user_id"
 )
 
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// IMPORTANT: This header MUST be injected by a trusted upstream (API Gateway).
-		role := r.Header.Get("X-User-Role")
-		userID := r.Header.Get("X-User-ID")
+func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Missing authorization header")
+				return
+			}
 
-		if role == "" {
-			util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Missing X-User-Role header")
-			return
-		}
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid authorization header format")
+				return
+			}
 
-		ctx := context.WithValue(r.Context(), RoleContextKey, role)
-		if userID != "" {
-			ctx = context.WithValue(ctx, UserIDContextKey, userID)
-		}
+			claims, err := auth.ValidateToken(parts[1], publicKeys, "cartgo-order-service")
+			if err != nil {
+				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token")
+				return
+			}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			ctx := context.WithValue(r.Context(), RoleContextKey, claims.Role)
+			ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 func GetUserID(ctx context.Context) string {

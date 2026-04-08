@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/vishalss1/CartGO/pkg/auth"
 )
 
 type Config struct {
@@ -12,6 +13,7 @@ type Config struct {
 	Port                string
 	InventoryServiceURL string
 	PaymentServiceURL   string
+	JWTPublicKeys       map[string]string
 }
 
 func LoadConfig() *Config {
@@ -40,10 +42,27 @@ func LoadConfig() *Config {
 		paymentServiceURL = "http://localhost:8085"
 	}
 
+	keysDir := os.Getenv("KEYS_DIR")
+	if keysDir == "" {
+		keysDir = "keys"
+		if _, err := os.Stat(keysDir); os.IsNotExist(err) {
+			if _, err := os.Stat("../../keys"); err == nil {
+				keysDir = "../../keys"
+			}
+		}
+	}
+
+	keysJSON := os.Getenv("JWT_PUBLIC_KEYS")
+	publicKeys, err := auth.LoadPublicKeys(keysJSON, keysDir)
+	if err != nil {
+		log.Printf("Warning: Failed to load public keys: %v\n", err)
+	}
+
 	return &Config{
 		DatabaseURL:         databaseURL,
 		Port:                port,
 		InventoryServiceURL: inventoryServiceURL,
 		PaymentServiceURL:   paymentServiceURL,
+		JWTPublicKeys:       publicKeys,
 	}
 }

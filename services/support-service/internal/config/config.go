@@ -5,20 +5,24 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/vishalss1/CartGO/pkg/auth"
 )
 
 type Config struct {
-	DatabaseURL string
-	Port        string
-	JWTSecret   string
+	DatabaseURL   string
+	Port          string
+	JWTPublicKeys map[string]string
 }
 
 func LoadConfig() *Config {
-	_ = godotenv.Load() // Ignore error if .env doesn't exist
+	err := godotenv.Load() // Ignore error if .env doesn't exist
+	if err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		log.Println("WARNING: DATABASE_URL is not set")
+		log.Fatal("DATABASE_URL is not set")
 	}
 
 	port := os.Getenv("PORT")
@@ -26,14 +30,25 @@ func LoadConfig() *Config {
 		port = "8087" // Default port for Support Service
 	}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		log.Println("WARNING: JWT_SECRET is not set")
+	keysDir := os.Getenv("KEYS_DIR")
+	if keysDir == "" {
+		keysDir = "keys"
+		if _, err := os.Stat(keysDir); os.IsNotExist(err) {
+			if _, err := os.Stat("../../keys"); err == nil {
+				keysDir = "../../keys"
+			}
+		}
+	}
+
+	keysJSON := os.Getenv("JWT_PUBLIC_KEYS")
+	publicKeys, err := auth.LoadPublicKeys(keysJSON, keysDir)
+	if err != nil {
+		log.Printf("Warning: Failed to load public keys: %v\n", err)
 	}
 
 	return &Config{
-		DatabaseURL: databaseURL,
-		Port:        port,
-		JWTSecret:   jwtSecret,
+		DatabaseURL:   databaseURL,
+		Port:          port,
+		JWTPublicKeys: publicKeys,
 	}
 }

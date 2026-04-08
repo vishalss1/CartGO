@@ -36,6 +36,9 @@ func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 	// 3. Timeout Control (Hardened)
 	r.Use(middleware.Timeout(15 * time.Second))
 
+	// 4. Header Sanitization
+	r.Use(gwMiddleware.SanitizeHeadersMiddleware)
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -44,11 +47,8 @@ func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 
 	// Service Routes
 	r.Group(func(r chi.Router) {
-		// 4. JWT Validation & Role Injection
-		r.Use(gwMiddleware.AuthMiddleware(cfg.JWTSecret))
-
 		// 5. Routing & Proxying
-		r.Mount("/api/v1/users", proxies.User.Handler())
+		r.Mount("/api/v1/user", proxies.User.Handler())
 		r.Mount("/api/v1/products", proxies.Product.Handler())
 		r.Mount("/api/v1/inventory", proxies.Inventory.Handler())
 		r.Mount("/api/v1/orders", proxies.Order.Handler())

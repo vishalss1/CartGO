@@ -66,9 +66,9 @@ func main() {
 		// Public route (via Gateway)
 		r.Get("/{product_id}", inventoryHandler.GetInventory)
 
-		// Protected routes (X-User-Role required)
+		// Protected routes (X-User-Role required -> now Authorization header)
 		r.Group(func(r chi.Router) {
-			r.Use(customMiddleware.AuthMiddleware)
+			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
 			// Warehouse Staff / Admin mutations
 			r.Group(func(r chi.Router) {

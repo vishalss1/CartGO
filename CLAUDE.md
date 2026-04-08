@@ -166,6 +166,23 @@ Decision:
 
 ---
 
+## SECURITY & AUTHENTICATION (RS256 JWT)
+
+- **API Gateway**: Acts strictly as a Layer-7 router + Rate Limiter. It does **not** decode tokens or strip headers.
+- **Service-Level Defense**: Every individual microservice enforces role checks in its own router utilizing the `pkg/auth` shared library.
+- **Tokens**: The system relies on Asymmetric JWTs (`RS256`).
+- **Identity Storage**: `user-service` is the only service that holds the `jwt_private.pem` (Issuer). All other services pull public keys dynamically via the `KEYS_DIR` environment fallback strategy.
+- **Key Rotation**: Asymmetric keys can be instantly rotated by executing `./scripts/generate_keys.sh`.
+
+---
+
+## LOCAL DEVELOPMENT CONFIGURATION
+
+- Local uncontainerized executions (`go run main.go`) should use `localhost` for their DB connection strings in `.env` to prevent OS host resolution failures (like `host.docker.internal` timeouts).
+- `KEYS_DIR` dynamically traverses the filesystem (i.e. `../../keys`) if run from a nested service directory to prevent missing keys on startup.
+
+---
+
 ## DIRECTORY STRUCTURE
 
 CartGO/

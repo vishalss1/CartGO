@@ -16,7 +16,7 @@ const (
 	RoleKey   contextKey = "role"
 )
 
-func AuthMiddleware(secret string) func(http.Handler) http.Handler {
+func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -31,7 +31,7 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			claims, err := auth.ValidateToken(parts[1], secret)
+			claims, err := auth.ValidateToken(parts[1], publicKeys)
 			if err != nil {
 				response.Error(w, http.StatusUnauthorized, "invalid token")
 				return

@@ -14,6 +14,7 @@ import (
 	"github.com/vishalss1/CartGO/services/support-service/db"
 	"github.com/vishalss1/CartGO/services/support-service/internal/config"
 	"github.com/vishalss1/CartGO/services/support-service/internal/handler"
+	customMiddleware "github.com/vishalss1/CartGO/services/support-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/support-service/internal/repository"
 	"github.com/vishalss1/CartGO/services/support-service/internal/service"
 )
@@ -40,6 +41,8 @@ func main() {
 	r.Use(middleware.Timeout(15 * time.Second))
 
 	r.Route("/api/v1/support", func(r chi.Router) {
+		r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
+
 		r.Post("/tickets", h.CreateTicket)
 		r.Get("/tickets", h.ListTickets)
 		r.Route("/tickets/{id}", func(r chi.Router) {

@@ -67,9 +67,9 @@ func main() {
 		r.Get("/", prodHandler.ListProducts)
 		r.Get("/{id}", prodHandler.GetProduct)
 
-		// Protected routes (X-User-Role required)
+		// Protected routes (X-User-Role required -> now Authorization header)
 		r.Group(func(r chi.Router) {
-			r.Use(customMiddleware.AuthMiddleware)
+			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 			
 			// Admin only mutations
 			r.Group(func(r chi.Router) {

@@ -1,0 +1,96 @@
+name: Application CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/**'
+      - 'api-gateway/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'services/**'
+      - 'api-gateway/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service_name: user-service
+            path: services/user-service
+            dockerfile: services/user-service/Dockerfile
+          - service_name: product-service
+            path: services/product-service
+            dockerfile: services/product-service/Dockerfile
+          - service_name: inventory-service
+            path: services/inventory-service
+            dockerfile: services/inventory-service/Dockerfile
+          - service_name: order-service
+            path: services/order-service
+            dockerfile: services/order-service/Dockerfile
+          - service_name: payment-service
+            path: services/payment-service
+            dockerfile: services/payment-service/Dockerfile
+          - service_name: delivery-service
+            path: services/delivery-service
+            dockerfile: services/delivery-service/Dockerfile
+          - service_name: support-service
+            path: services/support-service
+            dockerfile: services/support-service/Dockerfile
+          - service_name: api-gateway
+            path: api-gateway
+            dockerfile: api-gateway/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SERVICE_NAME: ${{ matrix.service_name }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG -t $ECR_REGISTRY/$SERVICE_NAME:latest -f ${{ matrix.dockerfile }} ${{ matrix.path }}
+          docker push $ECR_REGISTRY/$SERVICE_NAME:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$SERVICE_NAME:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Update Kubeconfig
+        run: aws eks update-kubeconfig --name cartgo-eks --region ap-south-1
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Apply common manifests
+          kubectl apply -f deployments/k8s/namespaces.yaml
+          # Apply service manifests
+          kubectl apply -f deployments/k8s/

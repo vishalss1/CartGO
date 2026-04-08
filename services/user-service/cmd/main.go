@@ -56,7 +56,7 @@ func main() {
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
-			r.Use(customMiddleware.AuthMiddleware(cfg.AccessTokenSecret))
+			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 			r.Get("/me", userHandler.Me)
 			r.Patch("/me", userHandler.UpdateMe)
 

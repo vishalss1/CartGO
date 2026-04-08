@@ -69,7 +69,7 @@ func main() {
 
 	// API v1 Routes
 	r.Route("/api/v1/orders", func(r chi.Router) {
-		r.Use(customMiddleware.AuthMiddleware)
+		r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
 		// Create order (Customer or Admin)
 		r.With(customMiddleware.RoleMiddleware("CUSTOMER", "ADMIN")).Post("/", orderHandler.CreateOrder)
