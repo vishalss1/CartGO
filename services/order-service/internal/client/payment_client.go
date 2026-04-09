@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/auth"
 )
 
 type PaymentClient interface {
@@ -46,7 +47,7 @@ func (c *HttpPaymentClient) ProcessPayment(ctx context.Context, orderID uuid.UUI
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "SERVICE_ORDER")
+	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

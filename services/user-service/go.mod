@@ -13,6 +13,7 @@ require (
 require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-playground/validator/v10 v10.30.2
+	github.com/vishalss1/CartGO/pkg v0.0.0-20260408143815-cc524d111b12
 )
 
 require (
@@ -23,3 +24,5 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 )
+
+replace github.com/vishalss1/CartGO => ../../

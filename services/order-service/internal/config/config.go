@@ -19,7 +19,7 @@ type Config struct {
 func LoadConfig() *Config {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("No .env file found, using system environment variables")
+		log.Println("Running without .env file (Docker/production mode)")
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")

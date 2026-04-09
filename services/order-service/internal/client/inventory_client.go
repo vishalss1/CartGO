@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
+	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/google/uuid"
 )
 
@@ -79,7 +79,7 @@ func (c *HttpInventoryClient) Release(ctx context.Context, orderID uuid.UUID) er
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "SERVICE_ORDER")
+	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -106,7 +106,7 @@ func (c *HttpInventoryClient) Commit(ctx context.Context, orderID uuid.UUID) err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Role", "SERVICE_ORDER")
+	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

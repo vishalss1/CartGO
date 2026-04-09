@@ -14,6 +14,7 @@ import (
 	"github.com/vishalss1/CartGO/services/payment-service/db"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/config"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/handler"
+	authmw "github.com/vishalss1/CartGO/services/payment-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/repository/postgres"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
 )
@@ -61,8 +62,12 @@ func main() {
 		w.Write([]byte(`{"status":"OK"}`))
 	})
 
+	// setup middleware for payment routes
+	authProvider := authmw.AuthMiddleware(cfg.JWTPublicKeys)
+
 	// API v1 Routes
 	r.Route("/api/v1/payments", func(r chi.Router) {
+		r.Use(authProvider)
 		r.Post("/", paymentHandler.ProcessPayment)
 	})
 

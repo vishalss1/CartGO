@@ -16,6 +16,16 @@ const RoleContextKey contextKey = "user_role"
 func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 1. Check for Internal Identity Headers (Trust because Gateway has stripped them from external traffic)
+			internalRole := r.Header.Get(auth.HeaderUserRole)
+
+			if internalRole != "" {
+				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// 2. Fallback to JWT Authorization
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
 				handler.ErrorJSONResponse(w, http.StatusUnauthorized, "Missing authorization header")

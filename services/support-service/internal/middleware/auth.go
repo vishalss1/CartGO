@@ -29,6 +29,18 @@ func errorResponse(w http.ResponseWriter, code int, errCode string, message stri
 func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 1. Check for Internal Identity Headers (Trust because Gateway has stripped them from external traffic)
+			internalUserID := r.Header.Get(auth.HeaderUserID)
+			internalRole := r.Header.Get(auth.HeaderUserRole)
+
+			if internalRole != "" {
+				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
+				ctx = context.WithValue(ctx, UserIDContextKey, internalUserID)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// 2. Fallback to JWT Authorization
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
 				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Missing authorization header")

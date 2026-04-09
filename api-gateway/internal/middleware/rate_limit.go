@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/vishalss1/CartGO/pkg/auth"
 	"golang.org/x/time/rate"
 )
 
@@ -41,7 +42,7 @@ func RateLimitMiddleware(limiter *IPRateLimiter) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try to limit by X-User-ID if available (authenticated)
 			// Fallback to RemoteAddr (unauthenticated)
-			key := r.Header.Get("X-User-ID")
+			key := r.Header.Get(auth.HeaderUserID)
 			if key == "" {
 				key = r.RemoteAddr
 			}

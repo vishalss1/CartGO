@@ -25,12 +25,34 @@ func main() {
 	cfg := config.LoadConfig()
 
 	// Initialize proxies
-	userProxy, _ := proxy.NewProxy(cfg.UserServiceURL)
-	productProxy, _ := proxy.NewProxy(cfg.ProductServiceURL)
-	inventoryProxy, _ := proxy.NewProxy(cfg.InventoryServiceURL)
-	orderProxy, _ := proxy.NewProxy(cfg.OrderServiceURL)
-	deliveryProxy, _ := proxy.NewProxy(cfg.DeliveryServiceURL)
-	supportProxy, _ := proxy.NewProxy(cfg.SupportServiceURL)
+	userProxy, err := proxy.NewProxy(cfg.UserServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize user-service proxy", "error", err)
+	}
+	productProxy, err := proxy.NewProxy(cfg.ProductServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize product-service proxy", "error", err)
+	}
+	inventoryProxy, err := proxy.NewProxy(cfg.InventoryServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize inventory-service proxy", "error", err)
+	}
+	orderProxy, err := proxy.NewProxy(cfg.OrderServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize order-service proxy", "error", err)
+	}
+	deliveryProxy, err := proxy.NewProxy(cfg.DeliveryServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize delivery-service proxy", "error", err)
+	}
+	supportProxy, err := proxy.NewProxy(cfg.SupportServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize support-service proxy", "error", err)
+	}
+	paymentProxy, err := proxy.NewProxy(cfg.PaymentServiceURL)
+	if err != nil {
+		logger.Error("Failed to initialize payment-service proxy", "error", err)
+	}
 
 	proxies := &router.ProxyContainer{
 		User:      userProxy,
@@ -39,6 +61,7 @@ func main() {
 		Order:     orderProxy,
 		Delivery:  deliveryProxy,
 		Support:   supportProxy,
+		Payment:   paymentProxy,
 	}
 
 	// Setup refactored router

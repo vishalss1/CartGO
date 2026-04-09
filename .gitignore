@@ -4,3 +4,4 @@ test*
 docker-compose.yml
 env*
 deployments/terraform
+.github

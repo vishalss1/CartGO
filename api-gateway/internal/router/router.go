@@ -19,6 +19,7 @@ type ProxyContainer struct {
 	Order     *proxy.Proxy
 	Delivery  *proxy.Proxy
 	Support   *proxy.Proxy
+	Payment   *proxy.Proxy
 }
 
 func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
@@ -28,16 +29,18 @@ func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// 2. Rate Limiting
+	// 2. Header Sanitization (Move to top for security)
+	// Prevents external users from spoofing internal identity headers
+	r.Use(gwMiddleware.SanitizeHeadersMiddleware)
+
+	// 3. Rate Limiting
 	// Default: 10 requests per second with a burst of 20
+	// Now safe because spoofed X-User-ID headers have been stripped
 	limiter := gwMiddleware.NewIPRateLimiter(rate.Limit(10), 20)
 	r.Use(gwMiddleware.RateLimitMiddleware(limiter))
 
-	// 3. Timeout Control (Hardened)
+	// 4. Timeout Control (Hardened)
 	r.Use(middleware.Timeout(15 * time.Second))
-
-	// 4. Header Sanitization
-	r.Use(gwMiddleware.SanitizeHeadersMiddleware)
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -48,12 +51,15 @@ func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 	// Service Routes
 	r.Group(func(r chi.Router) {
 		// 5. Routing & Proxying
-		r.Mount("/api/v1/user", proxies.User.Handler())
-		r.Mount("/api/v1/products", proxies.Product.Handler())
-		r.Mount("/api/v1/inventory", proxies.Inventory.Handler())
-		r.Mount("/api/v1/orders", proxies.Order.Handler())
-		r.Mount("/api/v1/deliveries", proxies.Delivery.Handler())
-		r.Mount("/api/v1/support", proxies.Support.Handler())
+		// Using Handle with wildcard to ensure the full path (including prefix)
+		// is forwarded to services that already expect it.
+		r.Handle("/api/v1/user*", proxies.User.Handler())
+		r.Handle("/api/v1/products*", proxies.Product.Handler())
+		r.Handle("/api/v1/inventory*", proxies.Inventory.Handler())
+		r.Handle("/api/v1/orders*", proxies.Order.Handler())
+		r.Handle("/api/v1/deliveries*", proxies.Delivery.Handler())
+		r.Handle("/api/v1/support*", proxies.Support.Handler())
+		r.Handle("/api/v1/payments*", proxies.Payment.Handler())
 	})
 
 	return r
