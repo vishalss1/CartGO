@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,11 +20,7 @@ import (
 )
 
 func main() {
-	// Initialize structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting product-service...")
+	log.Println("Starting product-service...")
 
 	// Load config
 	cfg := config.LoadConfig()
@@ -32,8 +28,7 @@ func main() {
 	// Initialize database
 	database, err := db.InitDB(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("Could not initialize database", "error", err)
-		os.Exit(1)
+		log.Fatalf("Could not initialize database: %v", err)
 	}
 	defer database.Close()
 
@@ -44,17 +39,17 @@ func main() {
 	prodService := service.NewProductService(prodRepo)
 
 	// Initialize handler
-	prodHandler := handler.NewProductHandler(prodService, logger)
+	prodHandler := handler.NewProductHandler(prodService)
 
 	// Setup router
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Health check (depth: verifies DB)
+	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(); err != nil {
-			logger.Error("Health check failed: DB down", "error", err)
+			log.Printf("Health check failed: DB down: %v", err)
 			handler.ErrorJSONResponse(w, http.StatusInternalServerError, "DB connectivity lost")
 			return
 		}
@@ -67,7 +62,7 @@ func main() {
 		r.Get("/", prodHandler.ListProducts)
 		r.Get("/{id}", prodHandler.GetProduct)
 
-		// Protected routes (X-User-Role required -> now Authorization header)
+		// Protected routes
 		r.Group(func(r chi.Router) {
 			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 			
@@ -91,10 +86,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("Product-service is running", "port", cfg.Port)
+		log.Printf("Product-service is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Listen and serve failed", "error", err)
-			os.Exit(1)
+			log.Fatalf("Listen and serve failed: %v", err)
 		}
 	}()
 
@@ -102,13 +96,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down product-service...")
+	log.Println("Shutting down product-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("Product-service stopped.")
+	log.Println("Product-service stopped.")
 }

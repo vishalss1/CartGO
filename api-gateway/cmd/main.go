@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,11 +15,7 @@ import (
 )
 
 func main() {
-	// Initialize structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting Hardened API Gateway...")
+	log.Println("Starting Hardened API Gateway...")
 
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -27,31 +23,31 @@ func main() {
 	// Initialize proxies
 	userProxy, err := proxy.NewProxy(cfg.UserServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize user-service proxy", "error", err)
+		log.Printf("Failed to initialize user-service proxy: %v", err)
 	}
 	productProxy, err := proxy.NewProxy(cfg.ProductServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize product-service proxy", "error", err)
+		log.Printf("Failed to initialize product-service proxy: %v", err)
 	}
 	inventoryProxy, err := proxy.NewProxy(cfg.InventoryServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize inventory-service proxy", "error", err)
+		log.Printf("Failed to initialize inventory-service proxy: %v", err)
 	}
 	orderProxy, err := proxy.NewProxy(cfg.OrderServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize order-service proxy", "error", err)
+		log.Printf("Failed to initialize order-service proxy: %v", err)
 	}
 	deliveryProxy, err := proxy.NewProxy(cfg.DeliveryServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize delivery-service proxy", "error", err)
+		log.Printf("Failed to initialize delivery-service proxy: %v", err)
 	}
 	supportProxy, err := proxy.NewProxy(cfg.SupportServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize support-service proxy", "error", err)
+		log.Printf("Failed to initialize support-service proxy: %v", err)
 	}
 	paymentProxy, err := proxy.NewProxy(cfg.PaymentServiceURL)
 	if err != nil {
-		logger.Error("Failed to initialize payment-service proxy", "error", err)
+		log.Printf("Failed to initialize payment-service proxy: %v", err)
 	}
 
 	proxies := &router.ProxyContainer{
@@ -77,10 +73,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("API Gateway is running", "port", cfg.Port)
+		log.Printf("API Gateway is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Listen and serve failed", "error", err)
-			os.Exit(1)
+			log.Fatalf("Listen and serve failed: %v", err)
 		}
 	}()
 
@@ -88,13 +83,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down API Gateway...")
+	log.Println("Shutting down API Gateway...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("API Gateway stopped.")
+	log.Println("API Gateway stopped.")
 }

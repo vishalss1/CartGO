@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -17,14 +17,12 @@ import (
 
 type OrderHandler struct {
 	service service.OrderService
-	logger  *slog.Logger
 	v       *validator.Validate
 }
 
-func NewOrderHandler(s service.OrderService, l *slog.Logger) *OrderHandler {
+func NewOrderHandler(s service.OrderService) *OrderHandler {
 	return &OrderHandler{
 		service: s,
-		logger:  l,
 		v:       validator.New(),
 	}
 }
@@ -121,6 +119,6 @@ func (h *OrderHandler) handleError(w http.ResponseWriter, r *http.Request, err e
 		msg = err.Error()
 	}
 
-	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
+	log.Printf("[OrderHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
 	util.ErrorJSONResponse(w, code, errCode, msg)
 }

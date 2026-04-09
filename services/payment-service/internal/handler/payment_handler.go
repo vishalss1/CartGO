@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -13,14 +13,12 @@ import (
 
 type PaymentHandler struct {
 	service service.PaymentService
-	logger  *slog.Logger
 	v       *validator.Validate
 }
 
-func NewPaymentHandler(s service.PaymentService, l *slog.Logger) *PaymentHandler {
+func NewPaymentHandler(s service.PaymentService) *PaymentHandler {
 	return &PaymentHandler{
 		service: s,
-		logger:  l,
 		v:       validator.New(),
 	}
 }
@@ -63,7 +61,7 @@ func (h *PaymentHandler) handleError(w http.ResponseWriter, r *http.Request, err
 		msg = err.Error()
 	}
 
-	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
+	log.Printf("[PaymentHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
 	h.errorJSONResponse(w, code, errCode, msg)
 }
 

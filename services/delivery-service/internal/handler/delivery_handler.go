@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -15,14 +15,12 @@ import (
 
 type DeliveryHandler struct {
 	service service.DeliveryService
-	logger  *slog.Logger
 	v       *validator.Validate
 }
 
-func NewDeliveryHandler(s service.DeliveryService, l *slog.Logger) *DeliveryHandler {
+func NewDeliveryHandler(s service.DeliveryService) *DeliveryHandler {
 	return &DeliveryHandler{
 		service: s,
-		logger:  l,
 		v:       validator.New(),
 	}
 }
@@ -115,7 +113,6 @@ func (h *DeliveryHandler) handleError(w http.ResponseWriter, r *http.Request, er
 	errCode := "INTERNAL_ERROR"
 	msg := "An unexpected error occurred"
 
-	// Simplified error mapping for delivery service
-	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
+	log.Printf("[DeliveryHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
 	util.ErrorJSONResponse(w, code, errCode, msg)
 }

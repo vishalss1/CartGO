@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,11 +22,7 @@ import (
 )
 
 func main() {
-	// Initialize structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting order-service...")
+	log.Println("Starting order-service...")
 
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -34,8 +30,7 @@ func main() {
 	// Initialize database connection
 	conn, err := db.InitDB(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer conn.Close()
 
@@ -46,11 +41,10 @@ func main() {
 	// Initialize repository
 	orderRepo := postgres.NewPostgresOrderRepository(conn)
 
-	// Initialize service
-	orderService := service.NewOrderService(orderRepo, inventoryClient, paymentClient, logger)
+	orderService := service.NewOrderService(orderRepo, inventoryClient, paymentClient)
 
 	// Initialize handler
-	orderHandler := handler.NewOrderHandler(orderService, logger)
+	orderHandler := handler.NewOrderHandler(orderService)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -60,7 +54,7 @@ func main() {
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
-			logger.Error("Health check failed", "error", err)
+			log.Printf("Health check failed: %v", err)
 			util.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "Database is down")
 			return
 		}
@@ -74,7 +68,7 @@ func main() {
 		// Create order (Customer or Admin)
 		r.With(customMiddleware.RoleMiddleware("CUSTOMER", "ADMIN")).Post("/", orderHandler.CreateOrder)
 
-		// Get order details (Open to all authenticated users for now)
+		// Get order details
 		r.Get("/{id}", orderHandler.GetOrder)
 
 		// Get orders for a user
@@ -91,10 +85,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("Order-service is running", "port", cfg.Port)
+		log.Printf("Order-service is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Listen and serve failed", "error", err)
-			os.Exit(1)
+			log.Fatalf("Listen and serve failed: %v", err)
 		}
 	}()
 
@@ -102,13 +95,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down order-service...")
+	log.Println("Shutting down order-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("Order-service stopped.")
+	log.Println("Order-service stopped.")
 }

@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -16,34 +16,32 @@ import (
 
 type ProductHandler struct {
 	service service.ProductService
-	logger  *slog.Logger
 	v       *validator.Validate
 }
 
-func NewProductHandler(s service.ProductService, l *slog.Logger) *ProductHandler {
+func NewProductHandler(s service.ProductService) *ProductHandler {
 	return &ProductHandler{
 		service: s,
-		logger:  l,
 		v:       validator.New(),
 	}
 }
 
 func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Type") != "application/json" {
-		h.logger.Error("invalid content type", "method", r.Method, "route", r.URL.Path, "status", http.StatusUnsupportedMediaType)
+		log.Printf("[ProductHandler] invalid content type: %s | method: %s | route: %s | status: %d", r.Header.Get("Content-Type"), r.Method, r.URL.Path, http.StatusUnsupportedMediaType)
 		ErrorJSONResponse(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return
 	}
 
 	var req model.CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Error("failed to decode request", "error", err, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] failed to decode request: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		h.logger.Error("validation failed", "error", err, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] validation failed: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Validation failed")
 		return
 	}
@@ -54,14 +52,14 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("product created", "id", p.ID, "method", r.Method, "route", r.URL.Path, "status", http.StatusCreated)
+	log.Printf("[ProductHandler] product created: %s | method: %s | route: %s | status: %d", p.ID, r.Method, r.URL.Path, http.StatusCreated)
 	JSONResponse(w, http.StatusCreated, p)
 }
 
 func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if _, err := uuid.Parse(id); err != nil {
-		h.logger.Error("invalid uuid", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
 	}
@@ -72,7 +70,7 @@ func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("product retrieved", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusOK)
+	log.Printf("[ProductHandler] product retrieved: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusOK)
 	JSONResponse(w, http.StatusOK, p)
 }
 
@@ -82,7 +80,7 @@ func (h *ProductHandler) ListProducts(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(query.Get("offset"))
 
 	if limit < 0 || offset < 0 {
-		h.logger.Error("invalid pagination params", "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] invalid pagination params | method: %s | route: %s | status: %d", r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Limit and offset must be non-negative")
 		return
 	}
@@ -121,40 +119,40 @@ func (h *ProductHandler) ListProducts(w http.ResponseWriter, r *http.Request) {
 		products = []*model.Product{}
 	}
 
-	h.logger.Info("products listed", "count", len(products), "method", r.Method, "route", r.URL.Path, "status", http.StatusOK)
+	log.Printf("[ProductHandler] products listed: count=%d | method: %s | route: %s | status: %d", len(products), r.Method, r.URL.Path, http.StatusOK)
 	JSONResponse(w, http.StatusOK, products)
 }
 
 func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-Type") != "application/json" {
-		h.logger.Error("invalid content type", "method", r.Method, "route", r.URL.Path, "status", http.StatusUnsupportedMediaType)
+		log.Printf("[ProductHandler] invalid content type: %s | method: %s | route: %s | status: %d", r.Header.Get("Content-Type"), r.Method, r.URL.Path, http.StatusUnsupportedMediaType)
 		ErrorJSONResponse(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return
 	}
 
 	id := chi.URLParam(r, "id")
 	if _, err := uuid.Parse(id); err != nil {
-		h.logger.Error("invalid uuid", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
 	}
 
 	var req model.UpdateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Error("failed to decode request", "error", err, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] failed to decode request: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Edge case check: At least one field must be provided
 	if req.Name == "" && req.Description == "" && req.Price == nil && req.Category == "" {
-		h.logger.Error("empty update request", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] empty update request: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "At least one valid field must be provided")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		h.logger.Error("validation failed", "error", err, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] validation failed: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Validation failed")
 		return
 	}
@@ -165,14 +163,14 @@ func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("product updated", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusOK)
+	log.Printf("[ProductHandler] product updated: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusOK)
 	JSONResponse(w, http.StatusOK, p)
 }
 
 func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if _, err := uuid.Parse(id); err != nil {
-		h.logger.Error("invalid uuid", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusBadRequest)
+		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
 	}
@@ -183,7 +181,7 @@ func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("product deleted", "id", id, "method", r.Method, "route", r.URL.Path, "status", http.StatusOK)
+	log.Printf("[ProductHandler] product deleted: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusOK)
 	JSONResponse(w, http.StatusOK, nil)
 }
 
@@ -199,6 +197,6 @@ func (h *ProductHandler) handleError(w http.ResponseWriter, r *http.Request, err
 		msg = err.Error()
 	}
 
-	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
+	log.Printf("[ProductHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
 	ErrorJSONResponse(w, code, msg)
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,11 +20,7 @@ import (
 )
 
 func main() {
-	// Initialize structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting delivery-service...")
+	log.Println("Starting delivery-service...")
 
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -32,8 +28,7 @@ func main() {
 	// Initialize database connection
 	conn, err := db.InitDB(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer conn.Close()
 
@@ -41,10 +36,10 @@ func main() {
 	deliveryRepo := postgres.NewPostgresDeliveryRepository(conn)
 
 	// Initialize service
-	deliveryService := service.NewDeliveryService(deliveryRepo, logger)
+	deliveryService := service.NewDeliveryService(deliveryRepo)
 
 	// Initialize handler
-	deliveryHandler := handler.NewDeliveryHandler(deliveryService, logger)
+	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -55,6 +50,7 @@ func main() {
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
+			log.Printf("Health check failed: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -64,13 +60,10 @@ func main() {
 
 	// API v1 Routes
 	r.Route("/api/v1/deliveries", func(r chi.Router) {
-		// Internal/Admin role to create a delivery
 		r.With(deliveryMiddleware.RoleMiddleware("CUSTOMER", "ADMIN", "SERVICE_ORDER")).Post("/", deliveryHandler.CreateDelivery)
 
 		r.Route("/{id}", func(r chi.Router) {
 			r.Get("/", deliveryHandler.GetDelivery)
-
-			// Restrict status updates to DELIVERY_PARTNER and ADMIN
 			r.With(deliveryMiddleware.RoleMiddleware("DELIVERY_PARTNER", "ADMIN")).
 				Patch("/status", deliveryHandler.UpdateDeliveryStatus)
 		})
@@ -88,10 +81,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("Delivery-service is running", "port", cfg.Port)
+		log.Printf("Delivery-service is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Listen and serve failed", "error", err)
-			os.Exit(1)
+			log.Fatalf("Listen and serve failed: %v", err)
 		}
 	}()
 
@@ -99,13 +91,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down delivery-service...")
+	log.Println("Shutting down delivery-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("Delivery-service stopped.")
+	log.Println("Delivery-service stopped.")
 }

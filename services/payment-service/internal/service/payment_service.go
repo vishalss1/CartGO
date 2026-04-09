@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"log/slog"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/model"
@@ -23,13 +23,11 @@ type PaymentService interface {
 
 type paymentService struct {
 	repo   *postgres.PostgresPaymentRepository
-	logger *slog.Logger
 }
 
-func NewPaymentService(repo *postgres.PostgresPaymentRepository, logger *slog.Logger) PaymentService {
+func NewPaymentService(repo *postgres.PostgresPaymentRepository) PaymentService {
 	return &paymentService{
 		repo:   repo,
-		logger: logger,
 	}
 }
 
@@ -46,7 +44,7 @@ func (s *paymentService) ProcessPayment(ctx context.Context, orderID uuid.UUID, 
 		Status:  status,
 	}
 
-	s.logger.Info("processing payment", "order_id", orderID, "amount", amount, "decision", status, "source", "deterministic_hash")
+	log.Printf("[PaymentService] processing payment: order_id=%s, amount=%.2f, decision=%s", orderID, amount, status)
 
 	savedPayment, err := s.repo.Save(ctx, payment)
 	if err != nil {
@@ -55,7 +53,7 @@ func (s *paymentService) ProcessPayment(ctx context.Context, orderID uuid.UUID, 
 
 	// Idempotency: verify amount matches if it's an existing record
 	if savedPayment.ID != uuid.Nil && savedPayment.Amount != amount {
-		s.logger.Warn("payment amount mismatch for existing order", "order_id", orderID, "existing_amount", savedPayment.Amount, "request_amount", amount)
+		log.Printf("[PaymentService] payment amount mismatch for existing order %s: existing=%.2f, requested=%.2f", orderID, savedPayment.Amount, amount)
 		return nil, ErrAmountMismatch
 	}
 

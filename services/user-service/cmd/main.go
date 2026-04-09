@@ -48,19 +48,16 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api/v1/user", func(r chi.Router) {
-		// Public routes
 		r.Post("/register", userHandler.Register)
 		r.Post("/login", userHandler.Login)
 		r.Post("/refresh", userHandler.Refresh)
 		r.Post("/logout", userHandler.Logout)
 
-		// Protected routes
 		r.Group(func(r chi.Router) {
 			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 			r.Get("/me", userHandler.Me)
 			r.Patch("/me", userHandler.UpdateMe)
 
-			// Admin only routes
 			r.Group(func(r chi.Router) {
 				r.Use(customMiddleware.RoleMiddleware("ADMIN"))
 				r.Get("/admin/users", userHandler.AdminListUsers)

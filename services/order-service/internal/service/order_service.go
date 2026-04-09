@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/order-service/internal/client"
@@ -29,20 +29,17 @@ type orderService struct {
 	repo            repository.OrderRepository
 	inventoryClient client.InventoryClient
 	paymentClient   client.PaymentClient
-	logger          *slog.Logger
 }
 
 func NewOrderService(
 	repo repository.OrderRepository,
 	invClient client.InventoryClient,
 	payClient client.PaymentClient,
-	logger *slog.Logger,
 ) OrderService {
 	return &orderService{
 		repo:            repo,
 		inventoryClient: invClient,
 		paymentClient:   payClient,
-		logger:          logger,
 	}
 }
 
@@ -64,7 +61,7 @@ func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *m
 
 	// 2. Save Order in DB
 	if err := s.repo.Create(ctx, order); err != nil {
-		s.logger.Error("failed to create order in db", "error", err)
+		log.Printf("[OrderService] failed to create order in db: %v", err)
 		return nil, err
 	}
 
@@ -73,7 +70,7 @@ func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *m
 	for _, item := range order.Items {
 		err := s.inventoryClient.Reserve(ctx, item.ProductID, order.ID, item.Quantity)
 		if err != nil {
-			s.logger.Warn("failed to reserve stock", "order_id", order.ID, "product_id", item.ProductID, "error", err)
+			log.Printf("[OrderService] failed to reserve stock for order %s, product %s: %v", order.ID, item.ProductID, err)
 			s.handleFailure(ctx, order, reservedItems, model.OrderStatusFailed)
 			return nil, fmt.Errorf("%w: %v", ErrStockFailed, err)
 		}
@@ -82,19 +79,19 @@ func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *m
 
 	// 4. Process Payment
 	if err := s.paymentClient.ProcessPayment(ctx, order.ID, order.TotalAmount); err != nil {
-		s.logger.Warn("payment processing failed", "order_id", order.ID, "error", err)
+		log.Printf("[OrderService] payment processing failed for order %s: %v", order.ID, err)
 		s.handleFailure(ctx, order, reservedItems, model.OrderStatusFailed)
 		return nil, ErrPaymentFailed
 	}
 
 	// 5. Commit Stock & Confirm Order
 	if err := s.inventoryClient.Commit(ctx, order.ID); err != nil {
-		s.logger.Error("failed to commit stock", "order_id", order.ID, "error", err)
+		log.Printf("[OrderService] failed to commit stock for order %s: %v", order.ID, err)
 		// This is a critical state; in a real system, this would be retried via a background worker
 	}
 
 	if err := s.repo.UpdateStatus(ctx, order.ID, model.OrderStatusConfirmed); err != nil {
-		s.logger.Error("failed to update order status to confirmed", "order_id", order.ID, "error", err)
+		log.Printf("[OrderService] failed to update order status to confirmed for order %s: %v", order.ID, err)
 		return nil, err
 	}
 
@@ -106,13 +103,13 @@ func (s *orderService) handleFailure(ctx context.Context, order *model.Order, re
 	// Release any reserved stock
 	if len(reservedItems) > 0 {
 		if err := s.inventoryClient.Release(ctx, order.ID); err != nil {
-			s.logger.Error("critical: failed to release stock after failure", "order_id", order.ID, "error", err)
+			log.Printf("[OrderService] critical: failed to release stock after failure for order %s: %v", order.ID, err)
 		}
 	}
 
 	// Update DB status
 	if err := s.repo.UpdateStatus(ctx, order.ID, finalStatus); err != nil {
-		s.logger.Error("failed to update order status to FAILED", "order_id", order.ID, "error", err)
+		log.Printf("[OrderService] failed to update order status to FAILED for order %s: %v", order.ID, err)
 	}
 }
 

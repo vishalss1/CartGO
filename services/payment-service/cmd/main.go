@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,11 +20,7 @@ import (
 )
 
 func main() {
-	// Initialize structured logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting payment-service...")
+	log.Println("Starting payment-service...")
 
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -32,8 +28,7 @@ func main() {
 	// Initialize database connection
 	conn, err := db.InitDB(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer conn.Close()
 
@@ -41,10 +36,10 @@ func main() {
 	paymentRepo := postgres.NewPostgresPaymentRepository(conn)
 
 	// Initialize service
-	paymentService := service.NewPaymentService(paymentRepo, logger)
+	paymentService := service.NewPaymentService(paymentRepo)
 
 	// Initialize handler
-	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -54,7 +49,7 @@ func main() {
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
-			logger.Error("Health check failed", "error", err)
+			log.Printf("Health check failed: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -62,7 +57,7 @@ func main() {
 		w.Write([]byte(`{"status":"OK"}`))
 	})
 
-	// setup middleware for payment routes
+	// setup middleware
 	authProvider := authmw.AuthMiddleware(cfg.JWTPublicKeys)
 
 	// API v1 Routes
@@ -81,10 +76,9 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		logger.Info("Payment-service is running", "port", cfg.Port)
+		log.Printf("Payment-service is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Listen and serve failed", "error", err)
-			os.Exit(1)
+			log.Fatalf("Listen and serve failed: %v", err)
 		}
 	}()
 
@@ -92,13 +86,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutting down payment-service...")
+	log.Println("Shutting down payment-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	logger.Info("Payment-service stopped.")
+	log.Println("Payment-service stopped.")
 }

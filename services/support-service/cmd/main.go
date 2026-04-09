@@ -20,6 +20,8 @@ import (
 )
 
 func main() {
+	log.Println("Starting support-service...")
+
 	cfg := config.LoadConfig()
 
 	// Initialize Database
@@ -64,7 +66,7 @@ func main() {
 
 	// Graceful Shutdown
 	go func() {
-		log.Printf("Support Service is running on port %s", cfg.Port)
+		log.Printf("Support Serivce is running on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Listen and serve failed: %v", err)
 		}
@@ -74,7 +76,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down Support Service...")
+	log.Println("Shutting down support-service...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -82,5 +84,5 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("Support Service stopped.")
+	log.Println("support-service stopped.")
 }

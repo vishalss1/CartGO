@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -15,14 +15,12 @@ import (
 
 type InventoryHandler struct {
 	service service.InventoryService
-	logger  *slog.Logger
 	v       *validator.Validate
 }
 
-func NewInventoryHandler(s service.InventoryService, l *slog.Logger) *InventoryHandler {
+func NewInventoryHandler(s service.InventoryService) *InventoryHandler {
 	return &InventoryHandler{
 		service: s,
-		logger:  l,
 		v:       validator.New(),
 	}
 }
@@ -30,7 +28,7 @@ func NewInventoryHandler(s service.InventoryService, l *slog.Logger) *InventoryH
 func (h *InventoryHandler) GetInventory(w http.ResponseWriter, r *http.Request) {
 	productID := chi.URLParam(r, "product_id")
 	if _, err := uuid.Parse(productID); err != nil {
-		h.logger.Error("invalid uuid", "id", productID, "status", http.StatusBadRequest)
+		log.Printf("[InventoryHandler] invalid uuid: %s | method: %s | route: %s | status: %d", productID, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
 		return
 	}
@@ -164,6 +162,6 @@ func (h *InventoryHandler) handleError(w http.ResponseWriter, r *http.Request, e
 		msg = err.Error()
 	}
 
-	h.logger.Error("handler error", "error", err, "method", r.Method, "route", r.URL.Path, "status", code)
+	log.Printf("[InventoryHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
 	ErrorJSONResponse(w, code, errCode, msg)
 }
