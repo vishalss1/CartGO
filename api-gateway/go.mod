@@ -14,4 +14,4 @@ require (
 
 require github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 
-replace github.com/vishalss1/CartGO => ../
+replace github.com/vishalss1/CartGO/pkg => ../pkg

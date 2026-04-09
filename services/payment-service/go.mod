@@ -23,4 +23,4 @@ require (
 	golang.org/x/text v0.35.0 // indirect
 )
 
-replace github.com/vishalss1/CartGO => ../../
+replace github.com/vishalss1/CartGO/pkg => ../../pkg
