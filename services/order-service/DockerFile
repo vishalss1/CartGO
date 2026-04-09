@@ -1,15 +1,14 @@
 # Build Stage
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src
+COPY pkg ./pkg
 
+WORKDIR /src/services/order-service
 COPY services/order-service/go.mod services/order-service/go.sum ./
 RUN go mod download
 
 COPY services/order-service .
-COPY pkg ./pkg
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o order-service ./cmd/main.go
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o order-service ./cmd/main.go
 
@@ -21,7 +20,7 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /app/order-service .
+COPY --from=builder /src/services/order-service/order-service .
 
 EXPOSE 8084
 

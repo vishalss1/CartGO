@@ -1,15 +1,14 @@
 # Build Stage
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src
+COPY pkg ./pkg
 
+WORKDIR /src/services/delivery-service
 COPY services/delivery-service/go.mod services/delivery-service/go.sum ./
 RUN go mod download
 
 COPY services/delivery-service .
-COPY pkg ./pkg
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o delivery-service ./cmd/main.go
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o delivery-service ./cmd/main.go
 
@@ -21,7 +20,7 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /app/delivery-service .
+COPY --from=builder /src/services/delivery-service/delivery-service .
 
 EXPOSE 8086
 

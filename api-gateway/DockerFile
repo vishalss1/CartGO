@@ -1,12 +1,14 @@
 # Build Stage
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src
+COPY pkg ./pkg
 
-COPY go.mod go.sum ./
+WORKDIR /src/api-gateway
+COPY api-gateway/go.mod api-gateway/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY api-gateway .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o api-gateway ./cmd/main.go
 
@@ -18,7 +20,7 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /app/api-gateway .
+COPY --from=builder /src/api-gateway/api-gateway .
 
 EXPOSE 8080
 
