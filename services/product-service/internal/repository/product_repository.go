@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-
+	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/product-service/internal/model"
 )
 
@@ -18,13 +19,17 @@ func NewPostgresProductRepository(db *sql.DB) *PostgresProductRepository {
 }
 
 func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product) (*model.Product, error) {
-	query := `
-		INSERT INTO products (name, description, price, category)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, updated_at`
+	if p.ID == uuid.Nil {
+		p.ID = util.GenerateUUID()
+	}
 
-	err := r.db.QueryRowContext(ctx, query, p.Name, p.Description, p.Price, p.Category).
-		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	query := `
+		INSERT INTO products (id, name, description, price, category)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING created_at, updated_at`
+
+	err := r.db.QueryRowContext(ctx, query, p.ID, p.Name, p.Description, p.Price, p.Category).
+		Scan(&p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create product: %v", err)
@@ -33,7 +38,7 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product
 	return p, nil
 }
 
-func (r *PostgresProductRepository) GetByID(ctx context.Context, id string) (*model.Product, error) {
+func (r *PostgresProductRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Product, error) {
 	query := `
 		SELECT id, name, description, price, category, created_at, updated_at
 		FROM products
@@ -132,7 +137,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, p *model.Product
 	return p, nil
 }
 
-func (r *PostgresProductRepository) Delete(ctx context.Context, id string) error {
+func (r *PostgresProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM products WHERE id = $1`
 	res, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {

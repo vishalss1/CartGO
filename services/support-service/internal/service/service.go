@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
 	"github.com/vishalss1/CartGO/services/support-service/internal/repository"
 )
@@ -16,13 +17,14 @@ func NewService(repo *repository.Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) CreateTicket(ctx context.Context, key string, customerID string, subject string) (*model.Ticket, error) {
+func (s *Service) CreateTicket(ctx context.Context, key string, customerID uuid.UUID, subject string, orderID *uuid.UUID) (*model.Ticket, error) {
 	if subject == "" {
 		return nil, fmt.Errorf("subject is required")
 	}
 
 	ticket := &model.Ticket{
 		CustomerID: customerID,
+		OrderID:    orderID,
 		Subject:    subject,
 		Status:     model.StatusOpen,
 		Priority:   model.PriorityMedium,
@@ -35,11 +37,11 @@ func (s *Service) ListTickets(ctx context.Context, filters map[string]interface{
 	return s.repo.ListTickets(ctx, filters, limit, offset)
 }
 
-func (s *Service) GetTicket(ctx context.Context, id string) (*model.Ticket, error) {
+func (s *Service) GetTicket(ctx context.Context, id uuid.UUID) (*model.Ticket, error) {
 	return s.repo.GetTicket(ctx, id)
 }
 
-func (s *Service) UpdateStatus(ctx context.Context, ticketID string, newStatus model.TicketStatus, performedBy string, role string) error {
+func (s *Service) UpdateStatus(ctx context.Context, ticketID uuid.UUID, newStatus model.TicketStatus, performedBy uuid.UUID, role string) error {
 	if role != "SUPPORT_AGENT" && role != "ADMIN" {
 		return fmt.Errorf("unauthorized: only agents or admins can update status")
 	}
@@ -78,7 +80,7 @@ func (s *Service) UpdateStatus(ctx context.Context, ticketID string, newStatus m
 	return s.repo.UpdateTicket(ctx, ticket, model.ActionStatusUpdated, performedBy)
 }
 
-func (s *Service) AssignTicket(ctx context.Context, ticketID string, agentID string, performedBy string, role string) error {
+func (s *Service) AssignTicket(ctx context.Context, ticketID uuid.UUID, agentID uuid.UUID, performedBy uuid.UUID, role string) error {
 	if role != "SUPPORT_AGENT" && role != "ADMIN" {
 		return fmt.Errorf("unauthorized: only agents or admins can assign tickets")
 	}
@@ -96,7 +98,7 @@ func (s *Service) AssignTicket(ctx context.Context, ticketID string, agentID str
 	return s.repo.UpdateTicket(ctx, ticket, model.ActionAssigned, performedBy)
 }
 
-func (s *Service) AddMessage(ctx context.Context, ticketID string, senderID string, role string, content string) error {
+func (s *Service) AddMessage(ctx context.Context, ticketID uuid.UUID, senderID uuid.UUID, role string, content string) error {
 	ticket, err := s.repo.GetTicket(ctx, ticketID)
 	if err != nil {
 		return err
@@ -130,7 +132,7 @@ func (s *Service) AddMessage(ctx context.Context, ticketID string, senderID stri
 	return s.repo.AddMessage(ctx, msg)
 }
 
-func (s *Service) ListMessages(ctx context.Context, ticketID string, customerID string, role string, limit, offset int) ([]*model.Message, error) {
+func (s *Service) ListMessages(ctx context.Context, ticketID uuid.UUID, customerID uuid.UUID, role string, limit, offset int) ([]*model.Message, error) {
 	ticket, err := s.repo.GetTicket(ctx, ticketID)
 	if err != nil {
 		return nil, err

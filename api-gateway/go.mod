@@ -12,6 +12,9 @@ require (
 	golang.org/x/time v0.15.0
 )
 
-require github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+require (
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+)
 
 replace github.com/vishalss1/CartGO/pkg => ../pkg

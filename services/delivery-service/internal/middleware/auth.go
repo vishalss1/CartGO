@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/vishalss1/CartGO/services/delivery-service/internal/util"
 )
@@ -20,12 +21,17 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. Check for Internal Identity Headers (Trust because Gateway has stripped them from external traffic)
-			internalUserID := r.Header.Get(auth.HeaderUserID)
+			internalUserIDStr := r.Header.Get(auth.HeaderUserID)
 			internalRole := r.Header.Get(auth.HeaderUserRole)
 
 			if internalRole != "" {
+				userID, err := uuid.Parse(internalUserIDStr)
+				if err != nil {
+					util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid internal user id")
+					return
+				}
 				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
-				ctx = context.WithValue(ctx, UserIDContextKey, internalUserID)
+				ctx = context.WithValue(ctx, UserIDContextKey, userID)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -49,16 +55,22 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 				return
 			}
 
+			userID, err := uuid.Parse(claims.UserID)
+			if err != nil {
+				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token subject")
+				return
+			}
+
 			ctx := context.WithValue(r.Context(), RoleContextKey, claims.Role)
-			ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
+			ctx = context.WithValue(ctx, UserIDContextKey, userID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-func GetUserID(ctx context.Context) string {
-	userID, _ := ctx.Value(UserIDContextKey).(string)
+func GetUserID(ctx context.Context) uuid.UUID {
+	userID, _ := ctx.Value(UserIDContextKey).(uuid.UUID)
 	return userID
 }
 

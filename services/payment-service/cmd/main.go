@@ -17,6 +17,7 @@ import (
 	authmw "github.com/vishalss1/CartGO/services/payment-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/repository/postgres"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 
 	// Setup router
 	r := chi.NewRouter()
+	r.Use(util.CorrelationIDMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 

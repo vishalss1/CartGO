@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS deliveries (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     order_id UUID UNIQUE NOT NULL,
     status VARCHAR(20) NOT NULL CHECK (status IN ('PENDING', 'PICKED_UP', 'DELIVERED', 'CANCELLED')),
     delivery_address TEXT NOT NULL,

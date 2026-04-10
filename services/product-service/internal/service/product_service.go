@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/product-service/internal/model"
 	"github.com/vishalss1/CartGO/services/product-service/internal/repository"
 )
@@ -18,10 +19,10 @@ var (
 
 type ProductService interface {
 	CreateProduct(ctx context.Context, req *model.CreateProductRequest) (*model.Product, error)
-	GetProduct(ctx context.Context, id string) (*model.Product, error)
+	GetProduct(ctx context.Context, id uuid.UUID) (*model.Product, error)
 	ListProducts(ctx context.Context, filter *model.ProductFilter) ([]*model.Product, error)
-	UpdateProduct(ctx context.Context, id string, req *model.UpdateProductRequest) (*model.Product, error)
-	DeleteProduct(ctx context.Context, id string) error
+	UpdateProduct(ctx context.Context, id uuid.UUID, req *model.UpdateProductRequest) (*model.Product, error)
+	DeleteProduct(ctx context.Context, id uuid.UUID) error
 }
 
 type productService struct {
@@ -51,7 +52,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *model.CreatePro
 	return res, nil
 }
 
-func (s *productService) GetProduct(ctx context.Context, id string) (*model.Product, error) {
+func (s *productService) GetProduct(ctx context.Context, id uuid.UUID) (*model.Product, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -71,7 +72,7 @@ func (s *productService) ListProducts(ctx context.Context, filter *model.Product
 	return products, nil
 }
 
-func (s *productService) UpdateProduct(ctx context.Context, id string, req *model.UpdateProductRequest) (*model.Product, error) {
+func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *model.UpdateProductRequest) (*model.Product, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -101,7 +102,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id string, req *mode
 	return res, nil
 }
 
-func (s *productService) DeleteProduct(ctx context.Context, id string) error {
+func (s *productService) DeleteProduct(ctx context.Context, id uuid.UUID) error {
 	err := s.repo.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

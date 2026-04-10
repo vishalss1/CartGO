@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/delivery-service/internal/model"
 )
 
@@ -20,13 +21,17 @@ func NewPostgresDeliveryRepository(db *sql.DB) *PostgresDeliveryRepository {
 }
 
 func (r *PostgresDeliveryRepository) Create(ctx context.Context, d *model.Delivery) error {
-	query := `
-		INSERT INTO deliveries (order_id, status, delivery_address)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at, updated_at`
+	if d.ID == uuid.Nil {
+		d.ID = util.GenerateUUID()
+	}
 
-	err := r.db.QueryRowContext(ctx, query, d.OrderID, d.Status, d.DeliveryAddress).
-		Scan(&d.ID, &d.CreatedAt, &d.UpdatedAt)
+	query := `
+		INSERT INTO deliveries (id, order_id, status, delivery_address)
+		VALUES ($1, $2, $3, $4)
+		RETURNING created_at, updated_at`
+
+	err := r.db.QueryRowContext(ctx, query, d.ID, d.OrderID, d.Status, d.DeliveryAddress).
+		Scan(&d.CreatedAt, &d.UpdatedAt)
 
 	if err != nil {
 		var pgErr *pq.Error

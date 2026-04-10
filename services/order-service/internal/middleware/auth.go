@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/vishalss1/CartGO/services/order-service/internal/util"
 )
@@ -37,16 +38,22 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 				return
 			}
 
+			userID, err := uuid.Parse(claims.UserID)
+			if err != nil {
+				util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token subject")
+				return
+			}
+
 			ctx := context.WithValue(r.Context(), RoleContextKey, claims.Role)
-			ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
+			ctx = context.WithValue(ctx, UserIDContextKey, userID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-func GetUserID(ctx context.Context) string {
-	userID, _ := ctx.Value(UserIDContextKey).(string)
+func GetUserID(ctx context.Context) uuid.UUID {
+	userID, _ := ctx.Value(UserIDContextKey).(uuid.UUID)
 	return userID
 }
 

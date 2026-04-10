@@ -9,6 +9,7 @@ import (
 	"github.com/vishalss1/CartGO/api-gateway/internal/config"
 	gwMiddleware "github.com/vishalss1/CartGO/api-gateway/internal/middleware"
 	"github.com/vishalss1/CartGO/api-gateway/internal/proxy"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"golang.org/x/time/rate"
 )
 
@@ -25,7 +26,10 @@ type ProxyContainer struct {
 func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 	r := chi.NewRouter()
 
-	// 1. Logging & Recovery
+	// 1. Correlation ID for tracing
+	r.Use(util.CorrelationIDMiddleware)
+
+	// 2. Logging & Recovery
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 

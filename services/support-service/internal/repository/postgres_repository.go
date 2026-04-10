@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
 )
 
@@ -24,13 +26,15 @@ func (r *Repository) CreateTicketWithIdempotency(ctx context.Context, key string
 	
 	if err == nil && existingTicketID.Valid {
 		// Ticket already exists for this key
-		return r.getTicketByID(ctx, tx, existingTicketID.String)
+		parsedID, _ := uuid.Parse(existingTicketID.String)
+		return r.getTicketByID(ctx, tx, parsedID)
 	}
 
 	// 2. Create the ticket
+	ticket.ID = util.GenerateUUID()
 	err = tx.QueryRowContext(ctx,
-		"INSERT INTO tickets (customer_id, subject, status, priority, version) VALUES ($1, $2, $3, $4, 1) RETURNING id, created_at, updated_at",
-		ticket.CustomerID, ticket.Subject, ticket.Status, ticket.Priority).Scan(&ticket.ID, &ticket.CreatedAt, &ticket.UpdatedAt)
+		"INSERT INTO tickets (id, customer_id, order_id, subject, status, priority, version) VALUES ($1, $2, $3, $4, $5, $6, 1) RETURNING created_at, updated_at",
+		ticket.ID, ticket.CustomerID, ticket.OrderID, ticket.Subject, ticket.Status, ticket.Priority).Scan(&ticket.CreatedAt, &ticket.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +46,8 @@ func (r *Repository) CreateTicketWithIdempotency(ctx context.Context, key string
 	}
 
 	// 4. Audit Log
-	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (ticket_id, action, performed_by) VALUES ($1, $2, $3)", ticket.ID, model.ActionTicketCreated, ticket.CustomerID)
+	auditID := util.GenerateUUID()
+	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (id, ticket_id, action, performed_by) VALUES ($1, $2, $3, $4)", auditID, ticket.ID, model.ActionTicketCreated, ticket.CustomerID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,15 +59,15 @@ func (r *Repository) CreateTicketWithIdempotency(ctx context.Context, key string
 	return ticket, nil
 }
 
-func (r *Repository) getTicketByID(ctx context.Context, tx *sql.Tx, id string) (*model.Ticket, error) {
+func (r *Repository) getTicketByID(ctx context.Context, tx *sql.Tx, id uuid.UUID) (*model.Ticket, error) {
 	t := &model.Ticket{}
-	query := "SELECT id, customer_id, assigned_agent_id, status, priority, subject, version, created_at, updated_at FROM tickets WHERE id = $1"
+	query := "SELECT id, customer_id, order_id, assigned_agent_id, status, priority, subject, version, created_at, updated_at FROM tickets WHERE id = $1"
 	
 	var err error
 	if tx != nil {
-		err = tx.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
+		err = tx.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.OrderID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
 	} else {
-		err = r.db.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
+		err = r.db.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.OrderID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
 	}
 	
 	if err != nil {
@@ -71,12 +76,12 @@ func (r *Repository) getTicketByID(ctx context.Context, tx *sql.Tx, id string) (
 	return t, nil
 }
 
-func (r *Repository) GetTicket(ctx context.Context, id string) (*model.Ticket, error) {
+func (r *Repository) GetTicket(ctx context.Context, id uuid.UUID) (*model.Ticket, error) {
 	return r.getTicketByID(ctx, nil, id)
 }
 
 func (r *Repository) ListTickets(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]*model.Ticket, error) {
-	query := "SELECT id, customer_id, assigned_agent_id, status, priority, subject, version, created_at, updated_at FROM tickets WHERE 1=1"
+	query := "SELECT id, customer_id, order_id, assigned_agent_id, status, priority, subject, version, created_at, updated_at FROM tickets WHERE 1=1"
 	args := []interface{}{}
 	argCount := 1
 
@@ -98,7 +103,7 @@ func (r *Repository) ListTickets(ctx context.Context, filters map[string]interfa
 	tickets := []*model.Ticket{}
 	for rows.Next() {
 		t := &model.Ticket{}
-		if err := rows.Scan(&t.ID, &t.CustomerID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.CustomerID, &t.OrderID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		tickets = append(tickets, t)
@@ -106,7 +111,7 @@ func (r *Repository) ListTickets(ctx context.Context, filters map[string]interfa
 	return tickets, nil
 }
 
-func (r *Repository) UpdateTicket(ctx context.Context, ticket *model.Ticket, action model.AuditAction, performedBy string) error {
+func (r *Repository) UpdateTicket(ctx context.Context, ticket *model.Ticket, action model.AuditAction, performedBy uuid.UUID) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -127,7 +132,8 @@ func (r *Repository) UpdateTicket(ctx context.Context, ticket *model.Ticket, act
 	}
 
 	// Audit Log
-	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (ticket_id, action, performed_by) VALUES ($1, $2, $3)", ticket.ID, action, performedBy)
+	auditID := util.GenerateUUID()
+	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (id, ticket_id, action, performed_by) VALUES ($1, $2, $3, $4)", auditID, ticket.ID, action, performedBy)
 	if err != nil {
 		return err
 	}
@@ -142,15 +148,17 @@ func (r *Repository) AddMessage(ctx context.Context, msg *model.Message) error {
 	}
 	defer tx.Rollback()
 
+	msg.ID = util.GenerateUUID()
 	err = tx.QueryRowContext(ctx,
-		"INSERT INTO messages (ticket_id, sender_id, sender_role, content) VALUES ($1, $2, $3, $4) RETURNING id, created_at",
-		msg.TicketID, msg.SenderID, msg.SenderRole, msg.Content).Scan(&msg.ID, &msg.CreatedAt)
+		"INSERT INTO messages (id, ticket_id, sender_id, sender_role, content) VALUES ($1, $2, $3, $4, $5) RETURNING created_at",
+		msg.ID, msg.TicketID, msg.SenderID, msg.SenderRole, msg.Content).Scan(&msg.CreatedAt)
 	if err != nil {
 		return err
 	}
 
 	// Audit Log
-	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (ticket_id, action, performed_by) VALUES ($1, $2, $3)", msg.TicketID, model.ActionMessageAdded, msg.SenderID)
+	auditID := util.GenerateUUID()
+	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (id, ticket_id, action, performed_by) VALUES ($1, $2, $3, $4)", auditID, msg.TicketID, model.ActionMessageAdded, msg.SenderID)
 	if err != nil {
 		return err
 	}
@@ -158,7 +166,7 @@ func (r *Repository) AddMessage(ctx context.Context, msg *model.Message) error {
 	return tx.Commit()
 }
 
-func (r *Repository) ListMessages(ctx context.Context, ticketID string, limit, offset int) ([]*model.Message, error) {
+func (r *Repository) ListMessages(ctx context.Context, ticketID uuid.UUID, limit, offset int) ([]*model.Message, error) {
 	query := "SELECT id, ticket_id, sender_id, sender_role, content, created_at FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3"
 	rows, err := r.db.QueryContext(ctx, query, ticketID, limit, offset)
 	if err != nil {

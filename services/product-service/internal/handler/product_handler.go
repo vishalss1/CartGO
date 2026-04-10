@@ -58,13 +58,14 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(id); err != nil {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
 		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
 	}
 
-	p, err := h.service.GetProduct(r.Context(), id)
+	p, err := h.service.GetProduct(r.Context(), parsedID)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -131,7 +132,8 @@ func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(id); err != nil {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
 		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
@@ -157,7 +159,7 @@ func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, err := h.service.UpdateProduct(r.Context(), id, &req)
+	p, err := h.service.UpdateProduct(r.Context(), parsedID, &req)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -169,13 +171,14 @@ func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(id); err != nil {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
 		log.Printf("[ProductHandler] invalid uuid: %s | method: %s | route: %s | status: %d", id, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "Invalid product ID")
 		return
 	}
 
-	err := h.service.DeleteProduct(r.Context(), id)
+	err = h.service.DeleteProduct(r.Context(), parsedID)
 	if err != nil {
 		h.handleError(w, r, err)
 		return

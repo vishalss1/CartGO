@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type TicketStatus string
@@ -33,9 +35,10 @@ const (
 )
 
 type Ticket struct {
-	ID              string         `json:"id"`
-	CustomerID      string         `json:"customer_id"`
-	AssignedAgentID *string        `json:"assigned_agent_id"`
+	ID              uuid.UUID      `json:"id"`
+	CustomerID      uuid.UUID      `json:"customer_id"`
+	OrderID         *uuid.UUID     `json:"order_id,omitempty"`
+	AssignedAgentID *uuid.UUID     `json:"assigned_agent_id,omitempty"`
 	Status          TicketStatus   `json:"status"`
 	Priority        TicketPriority `json:"priority"`
 	Subject         string         `json:"subject"`
@@ -45,9 +48,9 @@ type Ticket struct {
 }
 
 type Message struct {
-	ID         string    `json:"id"`
-	TicketID   string    `json:"ticket_id"`
-	SenderID   string    `json:"sender_id"`
+	ID         uuid.UUID `json:"id"`
+	TicketID   uuid.UUID `json:"ticket_id"`
+	SenderID   uuid.UUID `json:"sender_id"`
 	SenderRole string    `json:"sender_role"`
 	Content    string    `json:"content"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -55,16 +58,16 @@ type Message struct {
 
 type IdempotencyKey struct {
 	Key        string    `json:"key"`
-	CustomerID string    `json:"customer_id"`
-	TicketID   *string   `json:"ticket_id"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	TicketID   *uuid.UUID `json:"ticket_id,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
 type AuditLog struct {
-	ID          string      `json:"id"`
-	TicketID    string      `json:"ticket_id"`
+	ID          uuid.UUID   `json:"id"`
+	TicketID    uuid.UUID   `json:"ticket_id"`
 	Action      AuditAction `json:"action"`
-	PerformedBy string      `json:"performed_by"`
+	PerformedBy uuid.UUID   `json:"performed_by"`
 	CreatedAt   time.Time   `json:"created_at"`
 }
 

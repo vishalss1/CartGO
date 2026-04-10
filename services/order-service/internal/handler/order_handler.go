@@ -40,15 +40,9 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract UserID from context (trusted source)
-	userIDStr := middleware.GetUserID(r.Context())
-	if userIDStr == "" {
-		util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User identity not found")
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid User ID format in token")
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		util.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User identity not found or invalid")
 		return
 	}
 

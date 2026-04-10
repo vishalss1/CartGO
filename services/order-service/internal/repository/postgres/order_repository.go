@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/order-service/internal/model"
 )
 
@@ -24,28 +25,31 @@ func (r *PostgresOrderRepository) Create(ctx context.Context, order *model.Order
 	}
 	defer tx.Rollback()
 
+	if order.ID == uuid.Nil {
+		order.ID = util.GenerateUUID()
+	}
+
 	// Insert order and return generated fields
 	queryOrder := `
-		INSERT INTO orders (user_id, total_amount, status)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at, updated_at`
+		INSERT INTO orders (id, user_id, total_amount, status, delivery_address)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING created_at, updated_at`
 	err = tx.QueryRowContext(ctx, queryOrder,
-		order.UserID, order.TotalAmount, order.Status).
-		Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)
+		order.ID, order.UserID, order.TotalAmount, order.Status, order.DeliveryAddress).
+		Scan(&order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert order: %v", err)
 	}
 
 	// Insert order items and return generated IDs
 	queryItem := `
-		INSERT INTO order_items (order_id, product_id, quantity, price_per_unit)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id`
+		INSERT INTO order_items (id, order_id, product_id, quantity, price_per_unit)
+		VALUES ($1, $2, $3, $4, $5)`
 	for i := range order.Items {
 		order.Items[i].OrderID = order.ID
-		err = tx.QueryRowContext(ctx, queryItem,
-			order.Items[i].OrderID, order.Items[i].ProductID, order.Items[i].Quantity, order.Items[i].PricePerUnit).
-			Scan(&order.Items[i].ID)
+		order.Items[i].ID = util.GenerateUUID()
+		_, err = tx.ExecContext(ctx, queryItem,
+			order.Items[i].ID, order.Items[i].OrderID, order.Items[i].ProductID, order.Items[i].Quantity, order.Items[i].PricePerUnit)
 		if err != nil {
 			return fmt.Errorf("failed to insert order item at index %d: %v", i, err)
 		}
@@ -56,13 +60,13 @@ func (r *PostgresOrderRepository) Create(ctx context.Context, order *model.Order
 
 func (r *PostgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Order, error) {
 	queryOrder := `
-		SELECT id, user_id, total_amount, status, created_at, updated_at
+		SELECT id, user_id, total_amount, status, delivery_address, created_at, updated_at
 		FROM orders
 		WHERE id = $1`
 
 	order := &model.Order{}
 	err := r.db.QueryRowContext(ctx, queryOrder, id).Scan(
-		&order.ID, &order.UserID, &order.TotalAmount, &order.Status, &order.CreatedAt, &order.UpdatedAt)
+		&order.ID, &order.UserID, &order.TotalAmount, &order.Status, &order.DeliveryAddress, &order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -95,7 +99,7 @@ func (r *PostgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 
 func (r *PostgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
 	query := `
-		SELECT id, user_id, total_amount, status, created_at, updated_at
+		SELECT id, user_id, total_amount, status, delivery_address, created_at, updated_at
 		FROM orders
 		WHERE user_id = $1
 		ORDER BY created_at DESC`
@@ -109,7 +113,7 @@ func (r *PostgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.U
 	var orders []*model.Order
 	for rows.Next() {
 		order := &model.Order{}
-		err := rows.Scan(&order.ID, &order.UserID, &order.TotalAmount, &order.Status, &order.CreatedAt, &order.UpdatedAt)
+		err := rows.Scan(&order.ID, &order.UserID, &order.TotalAmount, &order.Status, &order.DeliveryAddress, &order.CreatedAt, &order.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}

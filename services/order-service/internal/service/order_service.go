@@ -29,34 +29,47 @@ type orderService struct {
 	repo            repository.OrderRepository
 	inventoryClient client.InventoryClient
 	paymentClient   client.PaymentClient
+	productClient   client.ProductClient
+	deliveryClient  client.DeliveryClient
 }
 
 func NewOrderService(
 	repo repository.OrderRepository,
 	invClient client.InventoryClient,
 	payClient client.PaymentClient,
+	prodClient client.ProductClient,
+	delClient client.DeliveryClient,
 ) OrderService {
 	return &orderService{
 		repo:            repo,
 		inventoryClient: invClient,
 		paymentClient:   payClient,
+		productClient:   prodClient,
+		deliveryClient:  delClient,
 	}
 }
 
 func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *model.CreateOrderRequest) (*model.Order, error) {
-	// 1. Initial Order Setup (PENDING)
+	// 1. Initial Order Setup (Fetching real prices)
 	order := &model.Order{
-		UserID: userID,
-		Status: model.OrderStatusPending,
+		UserID:          userID,
+		Status:          model.OrderStatusPending,
+		DeliveryAddress: req.DeliveryAddress,
 	}
 
 	for _, item := range req.Items {
+		prod, err := s.productClient.GetProduct(ctx, item.ProductID)
+		if err != nil {
+			log.Printf("[OrderService] failed to fetch product %s: %v", item.ProductID, err)
+			return nil, fmt.Errorf("failed to fetch product details: %v", err)
+		}
+
 		order.Items = append(order.Items, model.OrderItem{
 			ProductID:    item.ProductID,
 			Quantity:     item.Quantity,
-			PricePerUnit: 100.0, // Mock price for now; should ideally come from Product Service
+			PricePerUnit: prod.Price,
 		})
-		order.TotalAmount += float64(item.Quantity) * 100.0
+		order.TotalAmount += float64(item.Quantity) * prod.Price
 	}
 
 	// 2. Save Order in DB
@@ -84,12 +97,19 @@ func (s *orderService) CreateOrder(ctx context.Context, userID uuid.UUID, req *m
 		return nil, ErrPaymentFailed
 	}
 
-	// 5. Commit Stock & Confirm Order
+	// 5. Commit Stock
 	if err := s.inventoryClient.Commit(ctx, order.ID); err != nil {
 		log.Printf("[OrderService] failed to commit stock for order %s: %v", order.ID, err)
 		// This is a critical state; in a real system, this would be retried via a background worker
 	}
 
+	// 6. Create Delivery Record
+	if err := s.deliveryClient.CreateDelivery(ctx, order.ID, order.DeliveryAddress); err != nil {
+		log.Printf("[OrderService] failed to trigger delivery for order %s: %v", order.ID, err)
+		// We proceed as order is paid and committed, but logging the delivery failure
+	}
+
+	// 7. Confirm Order
 	if err := s.repo.UpdateStatus(ctx, order.ID, model.OrderStatusConfirmed); err != nil {
 		log.Printf("[OrderService] failed to update order status to confirmed for order %s: %v", order.ID, err)
 		return nil, err

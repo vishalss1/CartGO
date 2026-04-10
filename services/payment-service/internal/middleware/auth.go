@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
 )
 
@@ -26,12 +27,17 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. Check for Internal Identity Headers
-			internalUserID := r.Header.Get(auth.HeaderUserID)
+			internalUserIDStr := r.Header.Get(auth.HeaderUserID)
 			internalRole := r.Header.Get(auth.HeaderUserRole)
 
 			if internalRole != "" {
+				userID, err := uuid.Parse(internalUserIDStr)
+				if err != nil {
+					errorJSONResponse(w, http.StatusUnauthorized, "Invalid internal user id")
+					return
+				}
 				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
-				ctx = context.WithValue(ctx, UserIDContextKey, internalUserID)
+				ctx = context.WithValue(ctx, UserIDContextKey, userID)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -55,8 +61,14 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 				return
 			}
 
+			userID, err := uuid.Parse(claims.UserID)
+			if err != nil {
+				errorJSONResponse(w, http.StatusUnauthorized, "Invalid token subject")
+				return
+			}
+
 			ctx := context.WithValue(r.Context(), RoleContextKey, claims.Role)
-			ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
+			ctx = context.WithValue(ctx, UserIDContextKey, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/user-service/internal/auth"
 	"github.com/vishalss1/CartGO/services/user-service/internal/config"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
@@ -24,9 +25,9 @@ type UserService interface {
 	RefreshToken(ctx context.Context, refreshToken string) (*model.AuthResponse, error)
 	Logout(ctx context.Context, refreshToken string) error
 	ListAllUsers(ctx context.Context) ([]*model.User, error)
-	ChangeUserRole(ctx context.Context, userID string, newRole string) error
-	GetUserByID(ctx context.Context, userID string) (*model.User, error)
-	UpdateProfile(ctx context.Context, userID string, req model.UpdateProfileRequest) (*model.User, error)
+	ChangeUserRole(ctx context.Context, userID uuid.UUID, newRole string) error
+	GetUserByID(ctx context.Context, userID uuid.UUID) (*model.User, error)
+	UpdateProfile(ctx context.Context, userID uuid.UUID, req model.UpdateProfileRequest) (*model.User, error)
 }
 
 type UserServiceImpl struct {
@@ -133,15 +134,15 @@ func (s *UserServiceImpl) ListAllUsers(ctx context.Context) ([]*model.User, erro
 	return s.userRepo.GetAllUsers(ctx)
 }
 
-func (s *UserServiceImpl) ChangeUserRole(ctx context.Context, userID string, newRole string) error {
+func (s *UserServiceImpl) ChangeUserRole(ctx context.Context, userID uuid.UUID, newRole string) error {
 	return s.userRepo.UpdateUserRole(ctx, userID, newRole)
 }
 
-func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
+func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID uuid.UUID) (*model.User, error) {
 	return s.userRepo.GetUserByID(ctx, userID)
 }
 
-func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID string, req model.UpdateProfileRequest) (*model.User, error) {
+func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID uuid.UUID, req model.UpdateProfileRequest) (*model.User, error) {
 	user, err := s.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -173,12 +174,12 @@ func (s *UserServiceImpl) UpdateProfile(ctx context.Context, userID string, req 
 }
 
 func (s *UserServiceImpl) createAuthResponse(ctx context.Context, user *model.User) (*model.AuthResponse, error) {
-	accessToken, err := auth.GenerateAccessToken(user.ID, user.Role, s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.AccessTokenExpiry)
+	accessToken, err := auth.GenerateAccessToken(user.ID.String(), user.Role, s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.AccessTokenExpiry)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshExpiry, err := auth.GenerateRefreshToken(user.ID, s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.RefreshTokenExpiry)
+	refreshToken, refreshExpiry, err := auth.GenerateRefreshToken(user.ID.String(), s.config.JWTPrivateKey, s.config.JWTPrivateKeyID, s.config.RefreshTokenExpiry)
 	if err != nil {
 		return nil, err
 	}

@@ -15,13 +15,14 @@ const (
 )
 
 type Order struct {
-	ID          uuid.UUID   `json:"id"`
-	UserID      uuid.UUID   `json:"user_id"`
-	TotalAmount float64     `json:"total_amount"`
-	Status      OrderStatus `json:"status"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	Items       []OrderItem `json:"items,omitempty"`
+	ID              uuid.UUID   `json:"id"`
+	UserID          uuid.UUID   `json:"user_id"`
+	TotalAmount     float64     `json:"total_amount"`
+	Status          OrderStatus `json:"status"`
+	DeliveryAddress string      `json:"delivery_address"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
+	Items           []OrderItem `json:"items,omitempty"`
 }
 
 type OrderItem struct {
@@ -33,7 +34,8 @@ type OrderItem struct {
 }
 
 type CreateOrderRequest struct {
-	Items []CreateOrderItem `json:"items" validate:"required,dive"`
+	Items           []CreateOrderItem `json:"items" validate:"required,dive"`
+	DeliveryAddress string            `json:"delivery_address" validate:"required"`
 }
 
 type CreateOrderItem struct {

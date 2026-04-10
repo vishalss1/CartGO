@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS inventory (
-    product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID PRIMARY KEY,
     stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
     reserved INT NOT NULL DEFAULT 0 CHECK (reserved >= 0),
     version INT NOT NULL DEFAULT 1,

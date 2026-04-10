@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/model"
 )
 
@@ -20,14 +21,18 @@ func NewPostgresPaymentRepository(db *sql.DB) *PostgresPaymentRepository {
 }
 
 func (r *PostgresPaymentRepository) Save(ctx context.Context, payment *model.Payment) (*model.Payment, error) {
+	if payment.ID == uuid.Nil {
+		payment.ID = util.GenerateUUID()
+	}
+
 	query := `
-		INSERT INTO payments (order_id, amount, status)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at`
+		INSERT INTO payments (id, order_id, amount, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING created_at`
 
 	err := r.db.QueryRowContext(ctx, query,
-		payment.OrderID, payment.Amount, payment.Status).
-		Scan(&payment.ID, &payment.CreatedAt)
+		payment.ID, payment.OrderID, payment.Amount, payment.Status).
+		Scan(&payment.CreatedAt)
 
 	if err != nil {
 		var pgErr *pq.Error

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"github.com/vishalss1/CartGO/pkg/auth"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/google/uuid"
 )
 
@@ -53,6 +54,7 @@ func (c *HttpInventoryClient) Reserve(ctx context.Context, productID uuid.UUID, 
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-User-Role", "SERVICE_ORDER") // Internal service role
+	util.TraceRequest(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -80,6 +82,7 @@ func (c *HttpInventoryClient) Release(ctx context.Context, orderID uuid.UUID) er
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
+	util.TraceRequest(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -107,6 +110,7 @@ func (c *HttpInventoryClient) Commit(ctx context.Context, orderID uuid.UUID) err
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
+	util.TraceRequest(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

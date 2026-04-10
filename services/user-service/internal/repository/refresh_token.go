@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
 )
 
 type RefreshTokenRepository interface {
-	StoreRefreshToken(ctx context.Context, userID string, token string, expiresAt time.Time) error
+	StoreRefreshToken(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) error
 	GetRefreshToken(ctx context.Context, token string) (*model.RefreshToken, error)
 	DeleteRefreshToken(ctx context.Context, token string) error
-	DeleteUserRefreshTokens(ctx context.Context, userID string) error
+	DeleteUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
 }
 
 type PostgresRefreshTokenRepository struct {
@@ -24,12 +26,13 @@ func NewPostgresRefreshTokenRepository(db *sql.DB) RefreshTokenRepository {
 	return &PostgresRefreshTokenRepository{db: db}
 }
 
-func (r *PostgresRefreshTokenRepository) StoreRefreshToken(ctx context.Context, userID string, token string, expiresAt time.Time) error {
+func (r *PostgresRefreshTokenRepository) StoreRefreshToken(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) error {
+	id := util.GenerateUUID()
 	query := `
-		INSERT INTO refresh_tokens (user_id, token, expires_at)
-		VALUES ($1, $2, $3)`
+		INSERT INTO refresh_tokens (id, user_id, token, expires_at)
+		VALUES ($1, $2, $3, $4)`
 
-	_, err := r.db.ExecContext(ctx, query, userID, token, expiresAt)
+	_, err := r.db.ExecContext(ctx, query, id, userID, token, expiresAt)
 	if err != nil {
 		return fmt.Errorf("failed to store refresh token: %v", err)
 	}
@@ -71,7 +74,7 @@ func (r *PostgresRefreshTokenRepository) DeleteRefreshToken(ctx context.Context,
 	return nil
 }
 
-func (r *PostgresRefreshTokenRepository) DeleteUserRefreshTokens(ctx context.Context, userID string) error {
+func (r *PostgresRefreshTokenRepository) DeleteUserRefreshTokens(ctx context.Context, userID uuid.UUID) error {
 	query := `DELETE FROM refresh_tokens WHERE user_id = $1`
 	_, err := r.db.ExecContext(ctx, query, userID)
 	if err != nil {

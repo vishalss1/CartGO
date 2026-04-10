@@ -13,6 +13,8 @@ type Config struct {
 	Port                string
 	InventoryServiceURL string
 	PaymentServiceURL   string
+	ProductServiceURL   string
+	DeliveryServiceURL  string
 	JWTPublicKeys       map[string]string
 }
 
@@ -42,6 +44,16 @@ func LoadConfig() *Config {
 		paymentServiceURL = "http://localhost:8085"
 	}
 
+	productServiceURL := os.Getenv("PRODUCT_SERVICE_URL")
+	if productServiceURL == "" {
+		productServiceURL = "http://localhost:8082"
+	}
+
+	deliveryServiceURL := os.Getenv("DELIVERY_SERVICE_URL")
+	if deliveryServiceURL == "" {
+		deliveryServiceURL = "http://localhost:8086"
+	}
+
 	keysDir := os.Getenv("KEYS_DIR")
 	if keysDir == "" {
 		keysDir = "keys"
@@ -63,6 +75,8 @@ func LoadConfig() *Config {
 		Port:                port,
 		InventoryServiceURL: inventoryServiceURL,
 		PaymentServiceURL:   paymentServiceURL,
+		ProductServiceURL:   productServiceURL,
+		DeliveryServiceURL:  deliveryServiceURL,
 		JWTPublicKeys:       publicKeys,
 	}
 }

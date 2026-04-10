@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/user-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
 	"github.com/vishalss1/CartGO/services/user-service/internal/response"
@@ -125,7 +126,7 @@ func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -141,7 +142,7 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
 	if !ok {
 		response.Error(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -182,9 +183,10 @@ func (h *UserHandler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) AdminUpdateRole(w http.ResponseWriter, r *http.Request) {
-	userID := chi.URLParam(r, "id")
-	if userID == "" {
-		response.Error(w, http.StatusBadRequest, "missing user id")
+	idStr := chi.URLParam(r, "id")
+	userID, err := uuid.Parse(idStr)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid user id")
 		return
 	}
 
@@ -201,7 +203,7 @@ func (h *UserHandler) AdminUpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.userService.ChangeUserRole(r.Context(), userID, req.Role)
+	err = h.userService.ChangeUserRole(r.Context(), userID, req.Role)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return

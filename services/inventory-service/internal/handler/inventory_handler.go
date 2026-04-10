@@ -26,9 +26,10 @@ func NewInventoryHandler(s service.InventoryService) *InventoryHandler {
 }
 
 func (h *InventoryHandler) GetInventory(w http.ResponseWriter, r *http.Request) {
-	productID := chi.URLParam(r, "product_id")
-	if _, err := uuid.Parse(productID); err != nil {
-		log.Printf("[InventoryHandler] invalid uuid: %s | method: %s | route: %s | status: %d", productID, r.Method, r.URL.Path, http.StatusBadRequest)
+	idStr := chi.URLParam(r, "product_id")
+	productID, err := uuid.Parse(idStr)
+	if err != nil {
+		log.Printf("[InventoryHandler] invalid uuid: %s | method: %s | route: %s | status: %d", idStr, r.Method, r.URL.Path, http.StatusBadRequest)
 		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
 		return
 	}
@@ -43,8 +44,9 @@ func (h *InventoryHandler) GetInventory(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *InventoryHandler) AdjustStock(w http.ResponseWriter, r *http.Request) {
-	productID := chi.URLParam(r, "product_id")
-	if _, err := uuid.Parse(productID); err != nil {
+	idStr := chi.URLParam(r, "product_id")
+	productID, err := uuid.Parse(idStr)
+	if err != nil {
 		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
 		return
 	}
@@ -60,7 +62,7 @@ func (h *InventoryHandler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.AdjustStock(r.Context(), productID, req.TotalStock)
+	err = h.service.AdjustStock(r.Context(), productID, req.TotalStock)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -70,8 +72,9 @@ func (h *InventoryHandler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *InventoryHandler) ReserveStock(w http.ResponseWriter, r *http.Request) {
-	productID := chi.URLParam(r, "product_id")
-	if _, err := uuid.Parse(productID); err != nil {
+	idStr := chi.URLParam(r, "product_id")
+	productID, err := uuid.Parse(idStr)
+	if err != nil {
 		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
 		return
 	}
@@ -87,7 +90,7 @@ func (h *InventoryHandler) ReserveStock(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := h.service.ReserveStock(r.Context(), productID, req.OrderID.String(), req.Quantity)
+	err = h.service.ReserveStock(r.Context(), productID, req.OrderID, req.Quantity)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -108,7 +111,7 @@ func (h *InventoryHandler) ReleaseStock(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := h.service.ReleaseStock(r.Context(), req.OrderID.String())
+	err := h.service.ReleaseStock(r.Context(), req.OrderID)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
@@ -129,7 +132,7 @@ func (h *InventoryHandler) CommitStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.CommitStock(r.Context(), req.OrderID.String())
+	err := h.service.CommitStock(r.Context(), req.OrderID)
 	if err != nil {
 		h.handleError(w, r, err)
 		return

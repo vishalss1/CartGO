@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Enum-like validation for TicketStatus and Priority via constraints
 CREATE TABLE IF NOT EXISTS tickets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     customer_id UUID NOT NULL,
     assigned_agent_id UUID,
     status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 CREATE TABLE IF NOT EXISTS messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL,
     sender_role VARCHAR(20) NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     action VARCHAR(255) NOT NULL,
     performed_by UUID NOT NULL,

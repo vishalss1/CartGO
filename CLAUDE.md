@@ -1,271 +1,60 @@
-# CartGO — Distributed Order Processing System
-
-## PROJECT IDENTITY
-
-CartGO is a distributed microservices-based order processing system built in Go.
-It handles product discovery, ordering, payment simulation, inventory management, delivery coordination, and user support.
-
----
-
-## CORE PRINCIPLES
-
-- Each service is **independent**
-- Each service has its **own database**
-- Services communicate via **HTTP only**
-- No direct code or DB sharing across services
-- Focus on **system behavior**, not UI
-- System is **role-based**, not user-type based
-
----
-
-## USER ROLES (RBAC MODEL)
-
-All users belong to the same system but have different roles:
-
-- CUSTOMER
-  - Browse products
-  - Place orders
-
-- WAREHOUSE_STAFF
-  - Manage inventory
-  - Update stock levels
-
-- DELIVERY_PARTNER
-  - View assigned deliveries
-  - Update delivery status
-
-- ADMIN
-  - Monitor system
-  - Manage users
-  - Override operations
-
-- SUPPORT_AGENT
-  - Answer user queries
-  - Guide product decisions
-
----
-
-## SERVICES
-
-### 1. User Service
-
-- Handles signup/login
-- Issues JWT tokens
-- Stores user roles
-
-### 2. Product Service
-
-- Manages product catalog
-- Read-heavy service
-- Used by CUSTOMER + SUPPORT_AGENT
-
-### 3. Inventory Service
-
-- Manages stock
-- Handles reserve/release operations
-- Used by WAREHOUSE_STAFF + ORDER_SERVICE
-- Must prevent overselling
-
-### 4. Order Service (CORE)
-
-- Orchestrates full order flow
-- Calls Inventory + Payment
-- Handles failures and state transitions
-
-### 5. Payment Service (Mock)
-
-- Simulates payment success/failure
-- Randomized response
-
-### 6. Delivery Service
-
-- Assigns deliveries
-- Tracks delivery status
-- Used by DELIVERY_PARTNER
-
-### 7. Support Service
-
-- Handles user queries
-- Enables interaction between CUSTOMER and SUPPORT_AGENT
-
-### 8. API Gateway
-
-- Entry point for all client requests
-- Handles routing + auth middleware
-- Extracts role from JWT and forwards request
-
----
-
-## ROLE → SERVICE ACCESS
-
-CUSTOMER
-→ Product Service (read)
-→ Order Service
-→ Support Service
-
-WAREHOUSE_STAFF
-→ Inventory Service
-
-DELIVERY_PARTNER
-→ Delivery Service
-
-SUPPORT_AGENT
-→ Support Service
-→ Product Service (read-only)
-
-ADMIN
-→ All services (via admin endpoints)
-
----
-
-## SYSTEM FLOW
-
-Client → API Gateway
-→ User Service (auth + JWT with role)
-→ Target Service (based on route)
-
-Order Flow:
-
-Client → API Gateway → Order Service
-
-Order Service:
-→ calls Inventory Service (reserve)
-→ calls Payment Service
-
-Decision:
-
-- if success → confirm order
-- if failure → rollback (release stock)
-
----
-
-## ORDER STATES
-
-- PENDING
-- CONFIRMED
-- FAILED
-
----
-
-## FAILURE SCENARIOS (MANDATORY)
-
-1. Out of stock → order rejected
-2. Payment failure → inventory released + order FAILED
-3. Concurrent requests → only valid stock allocated
-
----
-
-## ARCHITECTURE RULES
-
-- No shared database across services
-- No cross-service imports
-- Communication via HTTP only
-- Keep shared `pkg/` minimal
-- Business logic must live in `service/` layer
-- Authorization must be enforced at service level (not just gateway)
-
----
-
-## SECURITY & AUTHENTICATION (RS256 JWT)
-
-- **API Gateway**: Acts strictly as a Layer-7 router + Rate Limiter. It does **not** decode tokens or strip headers.
-- **Service-Level Defense**: Every individual microservice enforces role checks in its own router utilizing the `pkg/auth` shared library.
-- **Tokens**: The system relies on Asymmetric JWTs (`RS256`).
-- **Identity Storage**: `user-service` is the only service that holds the `jwt_private.pem` (Issuer). All other services pull public keys dynamically via the `KEYS_DIR` environment fallback strategy.
-- **Key Rotation**: Asymmetric keys can be instantly rotated by executing `./scripts/generate_keys.sh`.
-
----
-
-## LOCAL DEVELOPMENT CONFIGURATION
-
-- Local uncontainerized executions (`go run main.go`) should use `localhost` for their DB connection strings in `.env` to prevent OS host resolution failures (like `host.docker.internal` timeouts).
-- `KEYS_DIR` dynamically traverses the filesystem (i.e. `../../keys`) if run from a nested service directory to prevent missing keys on startup.
-
----
-
-## DIRECTORY STRUCTURE
-
-CartGO/
-
-- services/
-- api-gateway/
-- pkg/
-- deployments/
-- scripts/
-
-Each service:
-
-- cmd/
-
-- internal/
-  - handler/
-  - service/
-  - repository/
-  - model/
-
-- api/
-
-- db/
-
----
-
-## DEVELOPMENT ORDER
-
-1. user-service
-2. product-service
-3. inventory-service
-4. payment-service
-5. order-service
-6. delivery-service
-7. support-service
-8. api-gateway
-9. dockerize
-10. kubernetes
-11. AWS deployment
-
----
-
-## DATABASE STRATEGY
-
-- Single PostgreSQL instance
-- Multiple databases:
-  - user_db
-  - product_db
-  - inventory_db
-  - order_db
-  - delivery_db
-  - support_db
-
----
-
-## NON-GOALS
-
-- No frontend (multiple UIs can exist but not part of system)
-- No real payment integration
-- No unnecessary features (reviews, recommendations, etc.)
-
----
-
-## PRIMARY LEARNING GOALS
-
-- Service boundaries
-- Inter-service communication
-- Failure handling
-- Concurrency control (inventory)
-- Role-based access control (RBAC)
-- Containerization (Docker)
-- Orchestration (Kubernetes)
-- Deployment (AWS)
-
----
-
-## SUCCESS CRITERIA
-
-- Orders correctly processed across services
-- No overselling under concurrent requests
-- Failures handled gracefully
-- Services independently deployable
-- Role-based access enforced correctly
-- System runs via Docker + Kubernetes
-
----
+# CartGO Agent Context [BOOTSTRAP]
+# Status: ACTIVE_STANDARDIZED
+# Modified: 2026-04-09 16:55 UTC
+
+## 1. INFRASTRUCTURE & DISCOVERY
+Topology: Monorepo with 8 containers + Postgres
+Build Context: Root directory (MUST include `pkg/`)
+Networks: `cartgo-network` (Docker Bridge)
+Logging: Standard Go `log` package + Distributed Trace IDs (`pkg/util`)
+
+| Service | Port | Database | URL (Internal) |
+| :--- | :--- | :--- | :--- |
+| api-gateway | 8080 | N/A | http://api-gateway:8080 |
+| user-service | 8081 | cartgo_user_db | http://user-service:8081 |
+| product-service | 8082 | cartgo_product_db | http://product-service:8082 |
+| inventory-service | 8083 | cartgo_inventory_db | http://inventory-service:8083 |
+| order-service | 8084 | cartgo_order_db | http://order-service:8084 |
+| payment-service | 8085 | cartgo_payment_db | http://payment-service:8085 |
+| delivery-service | 8086 | cartgo_delivery_db | http://delivery-service:8086 |
+| support-service | 8087 | cartgo_support_db | http://support-service:8087 |
+
+## 2. AUTHENTICATION & SECURITY
+Mechanism: RS256 JWT (Asymmetric)
+Issuer: `user-service` (Holds `jwt_private.pem`)
+Validators: All microservices (Load `jwt_public.pem` from `/app/keys/`)
+
+### Identity Propagation (INTER-SERVICE TRUST)
+1. api-gateway STRIPS `X-User-ID` and `X-User-Role` from incoming external traffic.
+2. api-gateway PROXIES `Authorization` header to downstream services.
+3. Microservices validate JWT and populate internal context.
+4. Internal calls (e.g. Order -> Payment) use TRUST HEADERS:
+   - `X-User-ID`: Propagated UUID
+   - `X-User-Role`: `SERVICE_ORDER` (or specific service role)
+5. **Distributed Tracing**: `X-Correlation-ID` injected at Gateway and propagated across all services.
+
+## 3. CORE LOGIC & STATE
+- Order Flow: PENDING -> (Reserve Stock) -> (Process Payment) -> (Commit Stock) -> CONFIRMED
+- Price Fetching: `order-service` fetches real price via `ProductClient` (REPLACES mock 100.0).
+- Delivery: `delivery-service` auto-triggered when `order-service` status -> CONFIRMED.
+- Support tickets link directly to `order_id` in database and API filters.
+- **UUID Generation**: Standardized on **Postgres-side generation** (`DEFAULT gen_random_uuid()`). Go repositories use `RETURNING id` and `Scan()`. Manual assignment in Go code is prohibited for Primary Keys.
+
+## 4. BUILD & RUN COMMANDS
+Run Cluster: `docker-compose up --build`
+Rebuild Single: `docker-compose up --build -d <service-name>`
+Dependency Resolution: `go.mod` uses `replace github.com/vishalss1/CartGO/pkg => ../../pkg` (or similar relative path)
+
+## 5. RECENT REVISIONS (CRITICAL)
+- REVERTED all `slog` usage to standard `log`.
+- FIXED `payment-service` AuthMiddleware to support `X-User-Role` (internal headers).
+- ADDED Healthchecks to `docker-compose.yml` (Services wait for `db` to be healthy).
+- IMPLEMENTED Distributed Tracing: Correlation IDs propagate across major service flows.
+- HARDENED Order Handling: Dynamic pricing and automatic delivery orchestration.
+
+## 6. PENDING / MISSING
+- [x] Order Service: Real Pricing & Delivery Orchestration.
+- [x] Support Service: Order ID Linkage.
+- [x] Observability: Distributed Tracing (Correlation IDs).
+- [] Deployment: Kubernetes manifests (EKS/ALB) and Terraform infra.
+- [] Observability: Prometheus/Grafana full dashboard.

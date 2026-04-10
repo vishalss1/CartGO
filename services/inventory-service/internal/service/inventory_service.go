@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/model"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/repository"
 )
@@ -18,11 +19,11 @@ var (
 )
 
 type InventoryService interface {
-	GetInventory(ctx context.Context, productID string) (*model.InventoryResponse, error)
-	AdjustStock(ctx context.Context, productID string, totalStock int) error
-	ReserveStock(ctx context.Context, productID string, orderID string, quantity int) error
-	ReleaseStock(ctx context.Context, orderID string) error
-	CommitStock(ctx context.Context, orderID string) error
+	GetInventory(ctx context.Context, productID uuid.UUID) (*model.InventoryResponse, error)
+	AdjustStock(ctx context.Context, productID uuid.UUID, totalStock int) error
+	ReserveStock(ctx context.Context, productID uuid.UUID, orderID uuid.UUID, quantity int) error
+	ReleaseStock(ctx context.Context, orderID uuid.UUID) error
+	CommitStock(ctx context.Context, orderID uuid.UUID) error
 }
 
 type inventoryService struct {
@@ -33,7 +34,7 @@ func NewInventoryService(repo repository.InventoryRepository) InventoryService {
 	return &inventoryService{repo: repo}
 }
 
-func (s *inventoryService) GetInventory(ctx context.Context, productID string) (*model.InventoryResponse, error) {
+func (s *inventoryService) GetInventory(ctx context.Context, productID uuid.UUID) (*model.InventoryResponse, error) {
 	inv, err := s.repo.GetByProductID(ctx, productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -45,7 +46,7 @@ func (s *inventoryService) GetInventory(ctx context.Context, productID string) (
 	return inv.ToResponse(), nil
 }
 
-func (s *inventoryService) AdjustStock(ctx context.Context, productID string, totalStock int) error {
+func (s *inventoryService) AdjustStock(ctx context.Context, productID uuid.UUID, totalStock int) error {
 	inv, err := s.repo.GetByProductID(ctx, productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -73,7 +74,7 @@ func (s *inventoryService) AdjustStock(ctx context.Context, productID string, to
 	return nil
 }
 
-func (s *inventoryService) ReserveStock(ctx context.Context, productID string, orderID string, quantity int) error {
+func (s *inventoryService) ReserveStock(ctx context.Context, productID uuid.UUID, orderID uuid.UUID, quantity int) error {
 	inv, err := s.repo.GetByProductID(ctx, productID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -100,7 +101,7 @@ func (s *inventoryService) ReserveStock(ctx context.Context, productID string, o
 	return nil
 }
 
-func (s *inventoryService) ReleaseStock(ctx context.Context, orderID string) error {
+func (s *inventoryService) ReleaseStock(ctx context.Context, orderID uuid.UUID) error {
 	err := s.repo.Release(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -121,7 +122,7 @@ func (s *inventoryService) ReleaseStock(ctx context.Context, orderID string) err
 	return nil
 }
 
-func (s *inventoryService) CommitStock(ctx context.Context, orderID string) error {
+func (s *inventoryService) CommitStock(ctx context.Context, orderID uuid.UUID) error {
 	err := s.repo.Commit(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {

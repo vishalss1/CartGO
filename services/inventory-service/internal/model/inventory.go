@@ -7,7 +7,7 @@ import (
 )
 
 type Inventory struct {
-	ProductID string    `json:"product_id"`
+	ProductID uuid.UUID `json:"product_id"`
 	Stock     int       `json:"stock"`
 	Reserved  int       `json:"reserved"`
 	Version   int       `json:"version"`
@@ -38,7 +38,7 @@ type IdempotentRequest struct {
 }
 
 type InventoryResponse struct {
-	ProductID      string `json:"product_id"`
+	ProductID      uuid.UUID `json:"product_id"`
 	AvailableStock int    `json:"available_stock"`
 	TotalStock     int    `json:"total_stock"`
 	ReservedStock  int    `json:"reserved_stock"`

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
 )
 
@@ -18,20 +20,24 @@ func NewPostgresUserRepository(db *sql.DB) UserRepository {
 }
 
 func (r *PostgresUserRepository) CreateUser(ctx context.Context, user *model.User) error {
+	if user.ID == uuid.Nil {
+		user.ID = util.GenerateUUID()
+	}
+
 	query := `
-		INSERT INTO users (username, email, password_hash, role, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id`
+		INSERT INTO users (id, username, email, password_hash, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	now := time.Now()
-	err := r.db.QueryRowContext(ctx, query,
+	_, err := r.db.ExecContext(ctx, query,
+		user.ID,
 		user.Username,
 		user.Email,
 		user.PasswordHash,
 		user.Role,
 		now,
 		now,
-	).Scan(&user.ID)
+	)
 
 	if err != nil {
 		return fmt.Errorf("failed to create user: %v", err)
@@ -69,7 +75,7 @@ func (r *PostgresUserRepository) GetUserByEmail(ctx context.Context, email strin
 	return &user, nil
 }
 
-func (r *PostgresUserRepository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
+func (r *PostgresUserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	query := `
 		SELECT id, username, email, password_hash, role, created_at, updated_at
 		FROM users
@@ -148,7 +154,7 @@ func (r *PostgresUserRepository) GetAllUsers(ctx context.Context) ([]*model.User
 	return users, nil
 }
 
-func (r *PostgresUserRepository) UpdateUserRole(ctx context.Context, userID string, role string) error {
+func (r *PostgresUserRepository) UpdateUserRole(ctx context.Context, userID uuid.UUID, role string) error {
 	query := `UPDATE users SET role = $1, updated_at = $2 WHERE id = $3`
 	_, err := r.db.ExecContext(ctx, query, role, time.Now(), userID)
 	if err != nil {

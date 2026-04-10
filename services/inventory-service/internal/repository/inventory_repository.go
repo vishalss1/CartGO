@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/model"
 )
 
@@ -24,7 +25,7 @@ func NewPostgresInventoryRepository(db *sql.DB) *PostgresInventoryRepository {
 	return &PostgresInventoryRepository{db: db}
 }
 
-func (r *PostgresInventoryRepository) GetByProductID(ctx context.Context, productID string) (*model.Inventory, error) {
+func (r *PostgresInventoryRepository) GetByProductID(ctx context.Context, productID uuid.UUID) (*model.Inventory, error) {
 	query := `
 		SELECT product_id, stock, reserved, version, created_at, updated_at
 		FROM inventory
@@ -61,7 +62,7 @@ func (r *PostgresInventoryRepository) Upsert(ctx context.Context, inv *model.Inv
 	return inv, nil
 }
 
-func (r *PostgresInventoryRepository) GetReservations(ctx context.Context, orderID string) ([]*model.Reservation, error) {
+func (r *PostgresInventoryRepository) GetReservations(ctx context.Context, orderID uuid.UUID) ([]*model.Reservation, error) {
 	query := `
 		SELECT order_id, product_id, quantity, status, created_at, updated_at
 		FROM reservations
@@ -94,7 +95,7 @@ func (r *PostgresInventoryRepository) GetReservations(ctx context.Context, order
 	return reservations, nil
 }
 
-func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID string, orderID string, quantity int, currentVersion int) error {
+func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID uuid.UUID, orderID uuid.UUID, quantity int, currentVersion int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -141,7 +142,7 @@ func (r *PostgresInventoryRepository) Reserve(ctx context.Context, productID str
 	return tx.Commit()
 }
 
-func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID string) error {
+func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID uuid.UUID) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -157,7 +158,7 @@ func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID strin
 	defer rows.Close()
 
 	type item struct {
-		productID string
+		productID uuid.UUID
 		quantity  int
 		status    string
 	}
@@ -205,7 +206,7 @@ func (r *PostgresInventoryRepository) Release(ctx context.Context, orderID strin
 	return tx.Commit()
 }
 
-func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID string) error {
+func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID uuid.UUID) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -221,7 +222,7 @@ func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID string
 	defer rows.Close()
 
 	type item struct {
-		productID string
+		productID uuid.UUID
 		quantity  int
 		status    string
 	}
@@ -267,7 +268,7 @@ func (r *PostgresInventoryRepository) Commit(ctx context.Context, orderID string
 	return tx.Commit()
 }
 
-func (r *PostgresInventoryRepository) UpdateStock(ctx context.Context, productID string, totalStock int, currentVersion int) error {
+func (r *PostgresInventoryRepository) UpdateStock(ctx context.Context, productID uuid.UUID, totalStock int, currentVersion int) error {
 	query := `
 		UPDATE inventory
 		SET stock = $1, version = version + 1, updated_at = NOW()

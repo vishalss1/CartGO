@@ -18,7 +18,8 @@ import (
 	customMiddleware "github.com/vishalss1/CartGO/services/order-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/order-service/internal/repository/postgres"
 	"github.com/vishalss1/CartGO/services/order-service/internal/service"
-	"github.com/vishalss1/CartGO/services/order-service/internal/util"
+	serviceUtil "github.com/vishalss1/CartGO/services/order-service/internal/util"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 func main() {
@@ -37,17 +38,20 @@ func main() {
 	// Initialize clients
 	inventoryClient := client.NewHttpInventoryClient(cfg.InventoryServiceURL)
 	paymentClient := client.NewHttpPaymentClient(cfg.PaymentServiceURL)
+	productClient := client.NewHttpProductClient(cfg.ProductServiceURL)
+	deliveryClient := client.NewHttpDeliveryClient(cfg.DeliveryServiceURL)
 
 	// Initialize repository
 	orderRepo := postgres.NewPostgresOrderRepository(conn)
 
-	orderService := service.NewOrderService(orderRepo, inventoryClient, paymentClient)
+	orderService := service.NewOrderService(orderRepo, inventoryClient, paymentClient, productClient, deliveryClient)
 
 	// Initialize handler
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	// Setup router
 	r := chi.NewRouter()
+	r.Use(util.CorrelationIDMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
@@ -55,10 +59,10 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := conn.Ping(); err != nil {
 			log.Printf("Health check failed: %v", err)
-			util.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "Database is down")
+			serviceUtil.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "Database is down")
 			return
 		}
-		util.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+		serviceUtil.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
 	})
 
 	// API v1 Routes

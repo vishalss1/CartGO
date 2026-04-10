@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/support-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
 	"github.com/vishalss1/CartGO/services/support-service/internal/service"
@@ -36,8 +37,8 @@ func (h *Handler) respondWithJSON(w http.ResponseWriter, code int, payload inter
 
 func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
-	if userID == "" {
-		h.respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing User ID header")
+	if userID == uuid.Nil {
+		h.respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing or invalid User ID")
 		return
 	}
 
@@ -48,14 +49,15 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Subject string `json:"subject"`
+		Subject string     `json:"subject"`
+		OrderID *uuid.UUID `json:"order_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
 		return
 	}
 
-	ticket, err := h.svc.CreateTicket(r.Context(), idempotencyKey, userID, req.Subject)
+	ticket, err := h.svc.CreateTicket(r.Context(), idempotencyKey, userID, req.Subject, req.OrderID)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
@@ -78,6 +80,9 @@ func (h *Handler) ListTickets(w http.ResponseWriter, r *http.Request) {
 	if status := r.URL.Query().Get("status"); status != "" {
 		filters["status"] = status
 	}
+	if orderID := r.URL.Query().Get("order_id"); orderID != "" {
+		filters["order_id"] = orderID
+	}
 
 	// Customers only view their OWN tickets
 	if role != "ADMIN" && role != "SUPPORT_AGENT" {
@@ -96,7 +101,12 @@ func (h *Handler) ListTickets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetTicket(w http.ResponseWriter, r *http.Request) {
-	ticketID := chi.URLParam(r, "id")
+	ticketIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		return
+	}
 	ticket, err := h.svc.GetTicket(r.Context(), ticketID)
 	if err != nil {
 		h.respondWithError(w, http.StatusNotFound, "NOT_FOUND", "Ticket not found")
@@ -107,7 +117,12 @@ func (h *Handler) GetTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
-	ticketID := chi.URLParam(r, "id")
+	ticketIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		return
+	}
 	userID := middleware.GetUserID(r.Context())
 	role := middleware.GetRole(r.Context())
 
@@ -119,7 +134,7 @@ func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.svc.AddMessage(r.Context(), ticketID, userID, role, req.Content)
+	err = h.svc.AddMessage(r.Context(), ticketID, userID, role, req.Content)
 	if err != nil {
 		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
 		return
@@ -129,7 +144,12 @@ func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
-	ticketID := chi.URLParam(r, "id")
+	ticketIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		return
+	}
 	userID := middleware.GetUserID(r.Context())
 	role := middleware.GetRole(r.Context())
 
@@ -141,7 +161,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.svc.UpdateStatus(r.Context(), ticketID, req.Status, userID, role)
+	err = h.svc.UpdateStatus(r.Context(), ticketID, req.Status, userID, role)
 	if err != nil {
 		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
 		return
@@ -151,19 +171,24 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
-	ticketID := chi.URLParam(r, "id")
+	ticketIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		return
+	}
 	userID := middleware.GetUserID(r.Context())
 	role := middleware.GetRole(r.Context())
 
 	var req struct {
-		AgentID string `json:"agent_id"`
+		AgentID uuid.UUID `json:"agent_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
 		return
 	}
 
-	err := h.svc.AssignTicket(r.Context(), ticketID, req.AgentID, userID, role)
+	err = h.svc.AssignTicket(r.Context(), ticketID, req.AgentID, userID, role)
 	if err != nil {
 		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
 		return
@@ -173,7 +198,12 @@ func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
-	ticketID := chi.URLParam(r, "id")
+	ticketIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		return
+	}
 	userID := middleware.GetUserID(r.Context())
 	role := middleware.GetRole(r.Context())
 

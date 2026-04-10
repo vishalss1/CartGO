@@ -17,6 +17,7 @@ import (
 	customMiddleware "github.com/vishalss1/CartGO/services/user-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/user-service/internal/repository"
 	"github.com/vishalss1/CartGO/services/user-service/internal/service"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 func main() {
@@ -44,6 +45,7 @@ func main() {
 
 	// Setup router
 	r := chi.NewRouter()
+	r.Use(util.CorrelationIDMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
