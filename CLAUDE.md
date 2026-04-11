@@ -58,3 +58,27 @@ Dependency Resolution: `go.mod` uses `replace github.com/vishalss1/CartGO/pkg =>
 - [x] Observability: Distributed Tracing (Correlation IDs).
 - [] Deployment: Kubernetes manifests (EKS/ALB) and Terraform infra.
 - [] Observability: Prometheus/Grafana full dashboard.
+
+## 7. FRONTEND ARCHITECTURE [NEXT PHASE]
+### Tech Stack
+- **Core**: Vanilla HTML5, ES6+ Javascript (ES Modules).
+- **Reactivity**: Alpine.js or Petite Vue (Optional, for lightweight state binding).
+- **Styling**: Vanilla CSS (CSS Variables, Flex/Grid). NO Tailwind.
+- **Package Manager**: Vite (For fast bundling and dev server).
+
+### Design System (Brand: CartGO)
+- **Primary**: HSL(220, 100%, 60%) - Royal Blue.
+- **Aesthetic**: Premium Dark Mode, Glassmorphism elements, subtle micro-animations.
+- **Implementation**: Native CSS Custom Properties and modern Layout (Grid).
+
+### API Integration
+- **Base URL**: `http://localhost:8080/api/v1` (All calls via API-Gateway).
+- **Client**: Native `fetch` API.
+- **Auth**: Store access_token in `localStorage`; propagate in headers.
+
+### Implementation Roadmap
+1.  **Phase 1: Foundation**: Setup Vite, index.html, main.css with design tokens.
+2.  **Phase 2: Auth Components**: HTML templates for Login/Register, JS Auth handler.
+3.  **Phase 3: Catalog View**: Dynamic DOM rendering for product cards and filters.
+4.  **Phase 4: Order System**: Cart state management (JS objects), Checkout flow logic.
+5.  **Phase 5: Dashboard**: Profile, Order History, and Support Ticket dynamic views.
