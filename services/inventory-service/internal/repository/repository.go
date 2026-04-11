@@ -21,4 +21,5 @@ type InventoryRepository interface {
 	
 	// Direct stock update (for warehouse staff)
 	UpdateStock(ctx context.Context, productID uuid.UUID, totalStock int, currentVersion int) error
+	AdjustStock(ctx context.Context, productID uuid.UUID, delta int) error
 }

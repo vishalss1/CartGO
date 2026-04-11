@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/support-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
 	"github.com/vishalss1/CartGO/services/support-service/internal/service"
@@ -20,31 +21,16 @@ func NewHandler(svc *service.Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) respondWithError(w http.ResponseWriter, code int, errCode string, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(model.ErrorResponse{
-		Error:   errCode,
-		Message: message,
-	})
-}
-
-func (h *Handler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(payload)
-}
-
 func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
-		h.respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Missing or invalid User ID")
+		util.WriteError(w, http.StatusUnauthorized, "Missing or invalid User ID")
 		return
 	}
 
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
-		h.respondWithError(w, http.StatusBadRequest, "BAD_REQUEST", "Missing X-Idempotency-Key header")
+		util.WriteError(w, http.StatusBadRequest, "Missing X-Idempotency-Key header")
 		return
 	}
 
@@ -53,17 +39,17 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		OrderID *uuid.UUID `json:"order_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	ticket, err := h.svc.CreateTicket(r.Context(), idempotencyKey, userID, req.Subject, req.OrderID)
 	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, ticket)
+	util.WriteJSON(w, http.StatusCreated, ticket)
 }
 
 func (h *Handler) ListTickets(w http.ResponseWriter, r *http.Request) {
@@ -93,34 +79,34 @@ func (h *Handler) ListTickets(w http.ResponseWriter, r *http.Request) {
 
 	tickets, err := h.svc.ListTickets(r.Context(), filters, limit, offset)
 	if err != nil {
-		h.respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, tickets)
+	util.WriteJSON(w, http.StatusOK, tickets)
 }
 
 func (h *Handler) GetTicket(w http.ResponseWriter, r *http.Request) {
-	ticketIDStr := chi.URLParam(r, "id")
-	ticketID, err := uuid.Parse(ticketIDStr)
+	tickerIDStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(tickerIDStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid ticket ID format")
 		return
 	}
 	ticket, err := h.svc.GetTicket(r.Context(), ticketID)
 	if err != nil {
-		h.respondWithError(w, http.StatusNotFound, "NOT_FOUND", "Ticket not found")
+		util.WriteError(w, http.StatusNotFound, "Ticket not found")
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, ticket)
+	util.WriteJSON(w, http.StatusOK, ticket)
 }
 
 func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
-	ticketIDStr := chi.URLParam(r, "id")
-	ticketID, err := uuid.Parse(ticketIDStr)
+	idStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(idStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid ticket ID format")
 		return
 	}
 	userID := middleware.GetUserID(r.Context())
@@ -130,24 +116,24 @@ func (h *Handler) AddMessage(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	err = h.svc.AddMessage(r.Context(), ticketID, userID, role, req.Content)
 	if err != nil {
-		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
+		util.WriteError(w, http.StatusForbidden, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusCreated, map[string]string{"result": "success"})
+	util.WriteJSON(w, http.StatusCreated, map[string]string{"result": "success"})
 }
 
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
-	ticketIDStr := chi.URLParam(r, "id")
-	ticketID, err := uuid.Parse(ticketIDStr)
+	idStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(idStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid ticket ID format")
 		return
 	}
 	userID := middleware.GetUserID(r.Context())
@@ -157,24 +143,24 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		Status model.TicketStatus `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	err = h.svc.UpdateStatus(r.Context(), ticketID, req.Status, userID, role)
 	if err != nil {
-		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
+		util.WriteError(w, http.StatusForbidden, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, map[string]string{"result": "success"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"result": "success"})
 }
 
 func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
-	ticketIDStr := chi.URLParam(r, "id")
-	ticketID, err := uuid.Parse(ticketIDStr)
+	idStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(idStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid ticket ID format")
 		return
 	}
 	userID := middleware.GetUserID(r.Context())
@@ -184,24 +170,24 @@ func (h *Handler) AssignTicket(w http.ResponseWriter, r *http.Request) {
 		AgentID uuid.UUID `json:"agent_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	err = h.svc.AssignTicket(r.Context(), ticketID, req.AgentID, userID, role)
 	if err != nil {
-		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
+		util.WriteError(w, http.StatusForbidden, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, map[string]string{"result": "success"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"result": "success"})
 }
 
 func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
-	ticketIDStr := chi.URLParam(r, "id")
-	ticketID, err := uuid.Parse(ticketIDStr)
+	idStr := chi.URLParam(r, "id")
+	ticketID, err := uuid.Parse(idStr)
 	if err != nil {
-		h.respondWithError(w, http.StatusBadRequest, "INVALID_ID", "Invalid ticket ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid ticket ID format")
 		return
 	}
 	userID := middleware.GetUserID(r.Context())
@@ -215,9 +201,9 @@ func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.svc.ListMessages(r.Context(), ticketID, userID, role, limit, offset)
 	if err != nil {
-		h.respondWithError(w, http.StatusForbidden, "FORBIDDEN", err.Error())
+		util.WriteError(w, http.StatusForbidden, err.Error())
 		return
 	}
 
-	h.respondWithJSON(w, http.StatusOK, messages)
+	util.WriteJSON(w, http.StatusOK, messages)
 }

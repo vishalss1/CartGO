@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/vishalss1/CartGO/pkg/util"
+	"github.com/vishalss1/CartGO/services/order-service/internal/middleware"
 )
 
 type CreateDeliveryRequest struct {
@@ -49,6 +50,10 @@ func (c *HttpDeliveryClient) CreateDelivery(ctx context.Context, orderID uuid.UU
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
+	userID := middleware.GetUserID(ctx)
+	if userID != uuid.Nil {
+		req.Header.Set(auth.HeaderUserID, userID.String())
+	}
 	util.TraceRequest(ctx, req)
 
 	resp, err := c.httpClient.Do(req)

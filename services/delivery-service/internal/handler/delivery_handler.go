@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/delivery-service/internal/model"
 	"github.com/vishalss1/CartGO/services/delivery-service/internal/service"
-	"github.com/vishalss1/CartGO/services/delivery-service/internal/util"
 )
 
 type DeliveryHandler struct {
@@ -28,12 +28,12 @@ func NewDeliveryHandler(s service.DeliveryService) *DeliveryHandler {
 func (h *DeliveryHandler) CreateDelivery(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateDeliveryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -43,25 +43,25 @@ func (h *DeliveryHandler) CreateDelivery(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	util.JSONResponse(w, http.StatusCreated, delivery)
+	util.WriteJSON(w, http.StatusCreated, delivery)
 }
 
 func (h *DeliveryHandler) UpdateDeliveryStatus(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid delivery ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid delivery ID format")
 		return
 	}
 
 	var req model.UpdateDeliveryStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -71,14 +71,14 @@ func (h *DeliveryHandler) UpdateDeliveryStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	util.JSONResponse(w, http.StatusOK, map[string]string{"status": "updated"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 func (h *DeliveryHandler) GetDelivery(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid delivery ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid delivery ID format")
 		return
 	}
 
@@ -88,14 +88,14 @@ func (h *DeliveryHandler) GetDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	util.JSONResponse(w, http.StatusOK, delivery)
+	util.WriteJSON(w, http.StatusOK, delivery)
 }
 
 func (h *DeliveryHandler) ListDeliveriesByPartner(w http.ResponseWriter, r *http.Request) {
 	partnerIDStr := chi.URLParam(r, "partner_id")
 	partnerID, err := uuid.Parse(partnerIDStr)
 	if err != nil {
-		util.ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_ID", "Invalid partner ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid partner ID format")
 		return
 	}
 
@@ -105,14 +105,13 @@ func (h *DeliveryHandler) ListDeliveriesByPartner(w http.ResponseWriter, r *http
 		return
 	}
 
-	util.JSONResponse(w, http.StatusOK, deliveries)
+	util.WriteJSON(w, http.StatusOK, deliveries)
 }
 
 func (h *DeliveryHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	code := http.StatusInternalServerError
-	errCode := "INTERNAL_ERROR"
 	msg := "An unexpected error occurred"
 
 	log.Printf("[DeliveryHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
-	util.ErrorJSONResponse(w, code, errCode, msg)
+	util.WriteError(w, code, msg)
 }

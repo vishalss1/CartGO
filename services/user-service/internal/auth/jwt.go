@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	pkgAuth "github.com/vishalss1/CartGO/pkg/auth"
 )
 
@@ -29,6 +30,7 @@ func GenerateAccessToken(userID, role, privateKeyPEM, kid, expiryStr string) (st
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(),
 		},
 	}
 
@@ -59,6 +61,7 @@ func GenerateRefreshToken(userID, privateKeyPEM, kid, expiryStr string) (string,
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(),
 		},
 	}
 

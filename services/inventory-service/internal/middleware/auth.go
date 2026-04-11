@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/vishalss1/CartGO/pkg/auth"
-	"github.com/vishalss1/CartGO/services/inventory-service/internal/handler"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 type contextKey string
@@ -32,19 +32,19 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			// 2. Fallback to JWT Authorization
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				handler.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Missing authorization header")
+				util.WriteError(w, http.StatusUnauthorized, "Missing authorization header")
 				return
 			}
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				handler.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid authorization header format")
+				util.WriteError(w, http.StatusUnauthorized, "Invalid authorization header format")
 				return
 			}
 
 			claims, err := auth.ValidateToken(parts[1], publicKeys, "cartgo-inventory-service")
 			if err != nil {
-				handler.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token")
+				util.WriteError(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 
@@ -59,7 +59,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role, ok := r.Context().Value(RoleContextKey).(string)
 			if !ok {
-				handler.ErrorJSONResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User role not found in context")
+				util.WriteError(w, http.StatusUnauthorized, "User role not found in context")
 				return
 			}
 
@@ -72,7 +72,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 			}
 
 			if !isAllowed {
-				handler.ErrorJSONResponse(w, http.StatusForbidden, "FORBIDDEN", "Unauthorized role for this operation")
+				util.WriteError(w, http.StatusForbidden, "Unauthorized role for this operation")
 				return
 			}
 

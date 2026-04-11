@@ -2,14 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/user-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/user-service/internal/model"
-	"github.com/vishalss1/CartGO/services/user-service/internal/response"
 	"github.com/vishalss1/CartGO/services/user-service/internal/service"
 )
 
@@ -28,51 +29,52 @@ func NewUserHandler(userService service.UserService) *UserHandler {
 func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req model.SignupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	resp, err := h.userService.Signup(r.Context(), req)
 	if err != nil {
 		if err == service.ErrUserAlreadyExists {
-			response.Error(w, http.StatusConflict, err.Error())
+			util.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusCreated, resp)
+	util.WriteJSON(w, http.StatusCreated, resp)
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req model.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	resp, err := h.userService.Login(r.Context(), req)
 	if err != nil {
+		log.Printf("[UserHandler] Login failed for %s: %v", req.Email, err)
 		if err == service.ErrInvalidCredentials {
-			response.Error(w, http.StatusUnauthorized, err.Error())
+			util.WriteError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, resp)
+	util.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
@@ -80,26 +82,26 @@ func (h *UserHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		RefreshToken string `json:"refresh_token" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	resp, err := h.userService.RefreshToken(r.Context(), req.RefreshToken)
 	if err != nil {
 		if err == service.ErrInvalidToken {
-			response.Error(w, http.StatusUnauthorized, err.Error())
+			util.WriteError(w, http.StatusUnauthorized, err.Error())
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, resp)
+	util.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -107,86 +109,86 @@ func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		RefreshToken string `json:"refresh_token" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	err := h.userService.Logout(r.Context(), req.RefreshToken)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, map[string]string{"message": "logged out successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out successfully"})
 }
 
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		util.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	user, err := h.userService.GetUserByID(r.Context(), userID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, user)
+	util.WriteJSON(w, http.StatusOK, user)
 }
 
 func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		util.WriteError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req model.UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	user, err := h.userService.UpdateProfile(r.Context(), userID, req)
 	if err != nil {
 		if err == service.ErrUserAlreadyExists {
-			response.Error(w, http.StatusConflict, "email already in use")
+			util.WriteError(w, http.StatusConflict, "email already in use")
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, user)
+	util.WriteJSON(w, http.StatusOK, user)
 }
 
 func (h *UserHandler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.userService.ListAllUsers(r.Context())
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, users)
+	util.WriteJSON(w, http.StatusOK, users)
 }
 
 func (h *UserHandler) AdminUpdateRole(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	userID, err := uuid.Parse(idStr)
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid user id")
+		util.WriteError(w, http.StatusBadRequest, "invalid user id")
 		return
 	}
 
@@ -194,20 +196,20 @@ func (h *UserHandler) AdminUpdateRole(w http.ResponseWriter, r *http.Request) {
 		Role string `json:"role" validate:"required,oneof=CUSTOMER WAREHOUSE_STAFF DELIVERY_PARTNER ADMIN SUPPORT_AGENT"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		response.Error(w, http.StatusBadRequest, err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	err = h.userService.ChangeUserRole(r.Context(), userID, req.Role)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		util.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response.JSON(w, http.StatusOK, map[string]string{"message": "role updated successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"message": "role updated successfully"})
 }

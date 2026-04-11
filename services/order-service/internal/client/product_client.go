@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
 	"github.com/vishalss1/CartGO/pkg/util"
+	"github.com/vishalss1/CartGO/services/order-service/internal/middleware"
 )
 
 type Product struct {
@@ -42,6 +43,10 @@ func (c *HttpProductClient) GetProduct(ctx context.Context, productID uuid.UUID)
 	}
 
 	req.Header.Set(auth.HeaderUserRole, "SERVICE_ORDER")
+	userID := middleware.GetUserID(ctx)
+	if userID != uuid.Nil {
+		req.Header.Set(auth.HeaderUserID, userID.String())
+	}
 	util.TraceRequest(ctx, req)
 
 	resp, err := c.httpClient.Do(req)

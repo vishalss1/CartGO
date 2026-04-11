@@ -38,7 +38,7 @@ Validators: All microservices (Load `jwt_public.pem` from `/app/keys/`)
 - Price Fetching: `order-service` fetches real price via `ProductClient` (REPLACES mock 100.0).
 - Delivery: `delivery-service` auto-triggered when `order-service` status -> CONFIRMED.
 - Support tickets link directly to `order_id` in database and API filters.
-- **UUID Generation**: Standardized on **Postgres-side generation** (`DEFAULT gen_random_uuid()`). Go repositories use `RETURNING id` and `Scan()`. Manual assignment in Go code is prohibited for Primary Keys.
+- **UUID Generation**: Standardized on **Go-side generation** using `pkg/util/uuid.go` (`util.GenerateUUID()`). Database schemas use `UUID PRIMARY KEY` without defaults. Repositories MUST generate and assign the ID before executing an insert. Manual assignment in Go code via the centralized utility is required for all Primary Keys.
 
 ## 4. BUILD & RUN COMMANDS
 Run Cluster: `docker-compose up --build`

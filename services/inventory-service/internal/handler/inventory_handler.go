@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/model"
 	"github.com/vishalss1/CartGO/services/inventory-service/internal/service"
 )
@@ -30,7 +31,7 @@ func (h *InventoryHandler) GetInventory(w http.ResponseWriter, r *http.Request) 
 	productID, err := uuid.Parse(idStr)
 	if err != nil {
 		log.Printf("[InventoryHandler] invalid uuid: %s | method: %s | route: %s | status: %d", idStr, r.Method, r.URL.Path, http.StatusBadRequest)
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid product ID format")
 		return
 	}
 
@@ -40,53 +41,56 @@ func (h *InventoryHandler) GetInventory(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, inv)
+	util.WriteJSON(w, http.StatusOK, inv)
 }
 
 func (h *InventoryHandler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "product_id")
 	productID, err := uuid.Parse(idStr)
 	if err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid product ID format")
 		return
 	}
 
 	var req model.UpdateStockRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		log.Printf("[InventoryHandler] decode error: %v", err)
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	log.Printf("[InventoryHandler] adjusting stock for product %s by %d", productID, req.Adjustment)
 
 	if err := h.v.Struct(req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		log.Printf("[InventoryHandler] validation error: %v", err)
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	err = h.service.AdjustStock(r.Context(), productID, req.TotalStock)
+	err = h.service.AdjustStock(r.Context(), productID, req.Adjustment)
 	if err != nil {
 		h.handleError(w, r, err)
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, map[string]string{"status": "Stock updated successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"status": "Stock adjusted successfully"})
 }
 
 func (h *InventoryHandler) ReserveStock(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "product_id")
 	productID, err := uuid.Parse(idStr)
 	if err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid product ID format")
+		util.WriteError(w, http.StatusBadRequest, "Invalid product ID format")
 		return
 	}
 
 	var req model.ReserveRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -96,18 +100,18 @@ func (h *InventoryHandler) ReserveStock(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, map[string]string{"status": "Stock reserved successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"status": "Stock reserved successfully"})
 }
 
 func (h *InventoryHandler) ReleaseStock(w http.ResponseWriter, r *http.Request) {
 	var req model.IdempotentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -117,18 +121,18 @@ func (h *InventoryHandler) ReleaseStock(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, map[string]string{"status": "Stock released successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"status": "Stock released successfully"})
 }
 
 func (h *InventoryHandler) CommitStock(w http.ResponseWriter, r *http.Request) {
 	var req model.IdempotentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		ErrorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -138,33 +142,28 @@ func (h *InventoryHandler) CommitStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	JSONResponse(w, http.StatusOK, map[string]string{"status": "Stock committed successfully"})
+	util.WriteJSON(w, http.StatusOK, map[string]string{"status": "Stock committed successfully"})
 }
 
 func (h *InventoryHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	code := http.StatusInternalServerError
-	errCode := "INTERNAL_ERROR"
 	msg := "An unexpected error occurred"
 
 	switch {
 	case errors.Is(err, service.ErrNotFound):
 		code = http.StatusNotFound
-		errCode = "NOT_FOUND"
 		msg = err.Error()
 	case errors.Is(err, service.ErrInsufficientStock):
 		code = http.StatusConflict
-		errCode = "INSUFFICIENT_STOCK"
 		msg = err.Error()
 	case errors.Is(err, service.ErrConflict):
 		code = http.StatusConflict
-		errCode = "CONFLICT"
 		msg = err.Error()
 	case errors.Is(err, service.ErrInvalidState):
 		code = http.StatusBadRequest
-		errCode = "INVALID_STATE"
 		msg = err.Error()
 	}
 
 	log.Printf("[InventoryHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
-	ErrorJSONResponse(w, code, errCode, msg)
+	util.WriteError(w, code, msg)
 }

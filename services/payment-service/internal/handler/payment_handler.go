@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/model"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
 )
@@ -26,12 +27,12 @@ func NewPaymentHandler(s service.PaymentService) *PaymentHandler {
 func (h *PaymentHandler) ProcessPayment(w http.ResponseWriter, r *http.Request) {
 	var req model.PaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.errorJSONResponse(w, http.StatusBadRequest, "INVALID_INPUT", "Invalid request body")
+		util.WriteError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := h.v.Struct(req); err != nil {
-		h.errorJSONResponse(w, http.StatusBadRequest, "VALIDATION_FAILED", err.Error())
+		util.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -41,7 +42,7 @@ func (h *PaymentHandler) ProcessPayment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.jsonResponse(w, http.StatusOK, model.PaymentResponse{
+	util.WriteJSON(w, http.StatusOK, model.PaymentResponse{
 		PaymentID: payment.ID,
 		OrderID:   payment.OrderID,
 		Status:    string(payment.Status),
@@ -51,29 +52,15 @@ func (h *PaymentHandler) ProcessPayment(w http.ResponseWriter, r *http.Request) 
 
 func (h *PaymentHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	code := http.StatusInternalServerError
-	errCode := "INTERNAL_ERROR"
 	msg := "An unexpected error occurred"
 
 	switch {
 	case errors.Is(err, service.ErrAmountMismatch):
 		code = http.StatusConflict
-		errCode = "AMOUNT_MISMATCH"
 		msg = err.Error()
 	}
 
 	log.Printf("[PaymentHandler] error: %v | method: %s | route: %s | status: %d", err, r.Method, r.URL.Path, code)
-	h.errorJSONResponse(w, code, errCode, msg)
+	util.WriteError(w, code, msg)
 }
 
-func (h *PaymentHandler) jsonResponse(w http.ResponseWriter, code int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(data)
-}
-
-func (h *PaymentHandler) errorJSONResponse(w http.ResponseWriter, code int, errorCode string, message string) {
-	h.jsonResponse(w, code, map[string]string{
-		"error": message,
-		"code":  errorCode,
-	})
-}

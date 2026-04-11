@@ -2,13 +2,12 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
-	"github.com/vishalss1/CartGO/services/support-service/internal/model"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 type contextKey string
@@ -17,15 +16,6 @@ const (
 	RoleContextKey   contextKey = "user_role"
 	UserIDContextKey contextKey = "user_id"
 )
-
-func errorResponse(w http.ResponseWriter, code int, errCode string, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(model.ErrorResponse{
-		Error:   errCode,
-		Message: message,
-	})
-}
 
 func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -37,7 +27,7 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			if internalRole != "" {
 				userID, err := uuid.Parse(internalUserIDStr)
 				if err != nil {
-					errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid internal user id")
+					util.WriteError(w, http.StatusUnauthorized, "Invalid internal user id")
 					return
 				}
 				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
@@ -49,25 +39,25 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			// 2. Fallback to JWT Authorization
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Missing authorization header")
+				util.WriteError(w, http.StatusUnauthorized, "Missing authorization header")
 				return
 			}
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid authorization header format")
+				util.WriteError(w, http.StatusUnauthorized, "Invalid authorization header format")
 				return
 			}
 
 			claims, err := auth.ValidateToken(parts[1], publicKeys, "cartgo-api")
 			if err != nil {
-				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token")
+				util.WriteError(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 
 			userID, err := uuid.Parse(claims.UserID)
 			if err != nil {
-				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Invalid token subject")
+				util.WriteError(w, http.StatusUnauthorized, "Invalid token subject")
 				return
 			}
 
@@ -94,7 +84,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role := GetRole(r.Context())
 			if role == "" {
-				errorResponse(w, http.StatusUnauthorized, "AUTH_REQUIRED", "User role not found in context")
+				util.WriteError(w, http.StatusUnauthorized, "User role not found in context")
 				return
 			}
 
@@ -107,7 +97,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 			}
 
 			if !isAllowed {
-				errorResponse(w, http.StatusForbidden, "FORBIDDEN", "Unauthorized role for this operation")
+				util.WriteError(w, http.StatusForbidden, "Unauthorized role for this operation")
 				return
 			}
 

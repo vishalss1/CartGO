@@ -49,6 +49,15 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	// Health check
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+	})
+
+	r.Get("/api/v1/user/health", func(w http.ResponseWriter, r *http.Request) {
+		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+	})
+
 	r.Route("/api/v1/user", func(r chi.Router) {
 		r.Post("/register", userHandler.Register)
 		r.Post("/login", userHandler.Login)

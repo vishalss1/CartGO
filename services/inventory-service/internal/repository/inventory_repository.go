@@ -290,3 +290,26 @@ func (r *PostgresInventoryRepository) UpdateStock(ctx context.Context, productID
 
 	return nil
 }
+
+func (r *PostgresInventoryRepository) AdjustStock(ctx context.Context, productID uuid.UUID, delta int) error {
+	query := `
+		UPDATE inventory
+		SET stock = stock + $1, version = version + 1, updated_at = NOW()
+		WHERE product_id = $2`
+
+	res, err := r.db.ExecContext(ctx, query, delta, productID)
+	if err != nil {
+		return fmt.Errorf("could not adjust stock: %v", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}

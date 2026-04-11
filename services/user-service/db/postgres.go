@@ -34,5 +34,11 @@ func InitDB(databaseURL string) (*sql.DB, error) {
 		log.Printf("Warning: Migrations failed: %v", err)
 	}
 
+	// Seed data
+	err = SeedAdminUser(db)
+	if err != nil {
+		log.Printf("Warning: Seeding failed: %v", err)
+	}
+
 	return db, nil
 }

@@ -25,7 +25,7 @@ type Reservation struct {
 }
 
 type UpdateStockRequest struct {
-	TotalStock int `json:"total_stock" validate:"required,min=0"`
+	Adjustment int `json:"adjustment" validate:"required"`
 }
 
 type ReserveRequest struct {
@@ -39,9 +39,9 @@ type IdempotentRequest struct {
 
 type InventoryResponse struct {
 	ProductID      uuid.UUID `json:"product_id"`
-	AvailableStock int    `json:"available_stock"`
-	TotalStock     int    `json:"total_stock"`
-	ReservedStock  int    `json:"reserved_stock"`
+	AvailableStock int       `json:"available_stock"`
+	TotalStock     int       `json:"total_stock"`
+	ReservedStock  int       `json:"reserved_stock"`
 }
 
 func (i *Inventory) ToResponse() *InventoryResponse {

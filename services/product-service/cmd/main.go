@@ -17,6 +17,7 @@ import (
 	customMiddleware "github.com/vishalss1/CartGO/services/product-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/product-service/internal/repository"
 	"github.com/vishalss1/CartGO/services/product-service/internal/service"
+	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 
 	// Setup router
 	r := chi.NewRouter()
+	r.Use(util.CorrelationIDMiddleware)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
@@ -50,10 +52,10 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(); err != nil {
 			log.Printf("Health check failed: DB down: %v", err)
-			handler.ErrorJSONResponse(w, http.StatusInternalServerError, "DB connectivity lost")
+			util.WriteError(w, http.StatusInternalServerError, "DB connectivity lost")
 			return
 		}
-		handler.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
 	})
 
 	// API v1 Routes

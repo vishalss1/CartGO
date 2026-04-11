@@ -52,10 +52,10 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if err := database.Ping(); err != nil {
 			log.Printf("Health check failed: DB down: %v", err)
-			handler.ErrorJSONResponse(w, http.StatusInternalServerError, "DB_ERROR", "DB connectivity lost")
+			util.WriteError(w, http.StatusInternalServerError, "Database is down")
 			return
 		}
-		handler.JSONResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
 	})
 
 	// API v1 Routes
