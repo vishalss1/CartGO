@@ -3,18 +3,18 @@ import MainLayout from "../layout/MainLayout";
 import { getStoredCart, storeCart } from "../utils/auth";
 import { authenticatedRequest, apiRequest } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import StatusBanner from "../components/StatusBanner";
 
 export default function ShopPage() {
   const { token, user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [cart, setCart] = useState(getStoredCart);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState("");
@@ -39,7 +39,7 @@ export default function ShopPage() {
         setOrders(Array.isArray(orderList) ? orderList : []);
       } catch (loadError) {
         if (active) {
-          setError(loadError.message);
+          showError(loadError.message);
         }
       } finally {
         if (active) {
@@ -99,11 +99,9 @@ export default function ShopPage() {
 
   async function handleCheckout() {
     setCheckingOut(true);
-    setError("");
-    setSuccess("");
 
     try {
-      const order = await authenticatedRequest("/orders", token, {
+      await authenticatedRequest("/orders", token, {
         method: "POST",
         body: JSON.stringify({
           items: cart.map((item) => ({
@@ -118,9 +116,9 @@ export default function ShopPage() {
       setCart([]);
       storeCart([]);
       setDeliveryAddress("");
-      setSuccess(`Order ${order.id} created with status ${order.status}.`);
+      showSuccess("Order placed successfully!");
     } catch (checkoutError) {
-      setError(checkoutError.message);
+      showError(checkoutError.message);
     } finally {
       setCheckingOut(false);
     }
@@ -128,22 +126,20 @@ export default function ShopPage() {
 
   async function retryPayment(order) {
     setPayingOrderId(order.id);
-    setError("");
-    setSuccess("");
 
     try {
-      const payment = await authenticatedRequest("/payments", token, {
+      await authenticatedRequest("/payments", token, {
         method: "POST",
         body: JSON.stringify({
           order_id: order.id,
           amount: order.total_amount,
         }),
       });
-      setSuccess(`Payment ${payment.payment_id} returned ${payment.status}.`);
+      showSuccess("Payment processed successfully.");
       const freshOrders = await authenticatedRequest(`/orders/user/${user.id}`, token);
       setOrders(Array.isArray(freshOrders) ? freshOrders : []);
     } catch (paymentError) {
-      setError(paymentError.message);
+      showError(paymentError.message);
     } finally {
       setPayingOrderId("");
     }
@@ -163,8 +159,8 @@ export default function ShopPage() {
               Shop
             </h1>
             <p className="mt-4 max-w-[34rem] text-sm leading-relaxed text-muted">
-              Product catalog is loaded from product-service through the API gateway. Checkout
-              submits to order-service, and payment retries call payment-service directly.
+              Browse the catalog, add items to your cart, and place orders. Track your order
+              history and payment status below.
             </p>
           </div>
 
@@ -189,12 +185,9 @@ export default function ShopPage() {
             </select>
           </div>
 
-          {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
-          {success ? <StatusBanner tone="success">{success}</StatusBanner> : null}
-
           <div className="grid gap-4 md:grid-cols-2">
             {loading ? (
-              <StatusBanner>Loading products from product-service</StatusBanner>
+              <StatusBanner>Loading products</StatusBanner>
             ) : (
               filteredProducts.map((product) => (
                 <article key={product.id} className="border border-line p-5">
@@ -261,7 +254,7 @@ export default function ShopPage() {
                 value={deliveryAddress}
                 onChange={(event) => setDeliveryAddress(event.target.value)}
                 className="mt-3 h-28 w-full border border-line bg-transparent px-4 py-4 text-base outline-none transition-colors focus:border-paper"
-                placeholder="Required by order-service"
+                placeholder="Enter your delivery address"
               />
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-sm text-muted">Total</span>
@@ -284,7 +277,7 @@ export default function ShopPage() {
             </h2>
             <div className="mt-6 space-y-4">
               {orders.length === 0 ? (
-                <p className="text-sm text-muted">No orders returned for this user.</p>
+                <p className="text-sm text-muted">No orders yet.</p>
               ) : (
                 orders.map((order) => (
                   <div key={order.id} className="border border-line p-4">

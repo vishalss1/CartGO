@@ -4,7 +4,7 @@ import {
   getStoredSession,
   storeSession,
 } from "../utils/auth";
-import { fetchBackendHealth, loginRequest, meRequest } from "../utils/api";
+import { fetchBackendHealth, loginRequest, registerRequest, meRequest } from "../utils/api";
 
 const AuthContext = createContext(null);
 
@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   const [backendStatus, setBackendStatus] = useState({
     checked: false,
     online: false,
-    message: "Checking gateway",
+    message: "Connecting to services",
   });
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
         setBackendStatus({
           checked: true,
           online: true,
-          message: "Gateway reachable on port 8080",
+          message: "Services online",
         });
       } catch (error) {
         if (!active) {
@@ -38,7 +38,7 @@ export function AuthProvider({ children }) {
         setBackendStatus({
           checked: true,
           online: false,
-          message: error.message,
+          message: "Service temporarily unavailable",
         });
       }
 
@@ -96,6 +96,10 @@ export function AuthProvider({ children }) {
         storeSession(nextSession);
         setSession(nextSession);
         return response.user;
+      },
+      async register(data) {
+        const response = await registerRequest(data);
+        return response;
       },
       logout() {
         clearStoredSession();

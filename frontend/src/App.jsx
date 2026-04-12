@@ -4,6 +4,7 @@ import AdminPage from "./pages/Admin";
 import DeliveryPage from "./pages/Delivery";
 import InventoryPage from "./pages/Inventory";
 import LoginPage from "./pages/Login";
+import RegisterPage from "./pages/Register";
 import RoleRedirectPage from "./pages/RoleRedirect";
 import ShopPage from "./pages/Shop";
 import SupportPage from "./pages/Support";
@@ -13,6 +14,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<RoleRedirectPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute allowedRole="CUSTOMER" />}>
         <Route path="/shop" element={<ShopPage />} />
       </Route>

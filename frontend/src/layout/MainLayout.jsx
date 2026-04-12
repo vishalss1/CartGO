@@ -9,10 +9,10 @@ export default function MainLayout({ children }) {
     <div id="top" className="min-h-screen bg-surface font-sans text-paper antialiased">
       <Navbar />
       <main className="px-5 py-6 sm:px-8 lg:px-12 xl:px-16">
-        {!backendStatus.online ? (
+        {!backendStatus.online && backendStatus.checked ? (
           <div className="mb-6">
             <StatusBanner tone="error">
-              Gateway check failed: {backendStatus.message}
+              Service temporarily unavailable. Please try again later.
             </StatusBanner>
           </div>
         ) : null}

@@ -4,15 +4,15 @@ import StatusBanner from "../components/StatusBanner";
 import { authenticatedRequest, apiRequest } from "../utils/api";
 import { VALID_ROLES } from "../utils/constants";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function AdminPage() {
   const { token } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [orders, setOrders] = useState([]);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [draftProduct, setDraftProduct] = useState({
@@ -24,7 +24,6 @@ export default function AdminPage() {
 
   async function loadAdminData() {
     setLoading(true);
-    setError("");
 
     try {
       const [userList, productList] = await Promise.all([
@@ -34,7 +33,7 @@ export default function AdminPage() {
       setUsers(Array.isArray(userList) ? userList : []);
       setProducts(Array.isArray(productList) ? productList : []);
     } catch (loadError) {
-      setError(loadError.message);
+      showError(loadError.message);
     } finally {
       setLoading(false);
     }
@@ -52,18 +51,15 @@ export default function AdminPage() {
   }, [users]);
 
   async function updateRole(userId, role) {
-    setError("");
-    setSuccess("");
-
     try {
       await authenticatedRequest(`/user/admin/users/${userId}/role`, token, {
         method: "PATCH",
         body: JSON.stringify({ role }),
       });
-      setSuccess("User role updated.");
+      showSuccess("User role updated.");
       await loadAdminData();
     } catch (updateError) {
-      setError(updateError.message);
+      showError(updateError.message);
     }
   }
 
@@ -72,13 +68,12 @@ export default function AdminPage() {
       return;
     }
     setOrdersLoading(true);
-    setError("");
 
     try {
       const userOrders = await authenticatedRequest(`/orders/user/${selectedUserId}`, token);
       setOrders(Array.isArray(userOrders) ? userOrders : []);
     } catch (loadError) {
-      setError(loadError.message);
+      showError(loadError.message);
     } finally {
       setOrdersLoading(false);
     }
@@ -86,8 +81,6 @@ export default function AdminPage() {
 
   async function createProduct(event) {
     event.preventDefault();
-    setError("");
-    setSuccess("");
 
     try {
       await authenticatedRequest("/products", token, {
@@ -98,25 +91,22 @@ export default function AdminPage() {
         }),
       });
       setDraftProduct({ name: "", description: "", price: "", category: "" });
-      setSuccess("Product created.");
+      showSuccess("Product created.");
       await loadAdminData();
     } catch (createError) {
-      setError(createError.message);
+      showError(createError.message);
     }
   }
 
   async function removeProduct(productId) {
-    setError("");
-    setSuccess("");
-
     try {
       await authenticatedRequest(`/products/${productId}`, token, {
         method: "DELETE",
       });
-      setSuccess("Product removed.");
+      showSuccess("Product removed.");
       await loadAdminData();
     } catch (removeError) {
-      setError(removeError.message);
+      showError(removeError.message);
     }
   }
 
@@ -131,13 +121,10 @@ export default function AdminPage() {
             Admin
           </h1>
           <p className="mt-4 max-w-[34rem] text-sm leading-relaxed text-muted">
-            Users load from user-service, products load from product-service, and order inspection
-            uses the per-user endpoint exposed by order-service through the gateway.
+            Manage users, products, and review orders. Assign roles and oversee platform
+            operations from a single dashboard.
           </p>
         </section>
-
-        {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
-        {success ? <StatusBanner tone="success">{success}</StatusBanner> : null}
 
         <section className="grid gap-4 md:grid-cols-3">
           <article className="border border-line p-5">
@@ -152,11 +139,9 @@ export default function AdminPage() {
           </article>
           <article className="border border-line p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted">
-              Gateway
+              Roles
             </p>
-            <p className="mt-4 text-sm leading-relaxed text-muted">
-              No global orders endpoint is exposed. Orders are inspected via `/orders/user/:id`.
-            </p>
+            <p className="mt-4 text-[2.4rem] font-black tracking-hero">{VALID_ROLES.length}</p>
           </article>
         </section>
 

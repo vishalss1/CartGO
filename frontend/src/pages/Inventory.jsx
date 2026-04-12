@@ -3,17 +3,16 @@ import MainLayout from "../layout/MainLayout";
 import StatusBanner from "../components/StatusBanner";
 import { authenticatedRequest, apiRequest } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function InventoryPage() {
   const { token } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function loadRows() {
     setLoading(true);
-    setError("");
 
     try {
       const productList = await apiRequest("/products?limit=100&offset=0");
@@ -36,7 +35,7 @@ export default function InventoryPage() {
       );
       setRows(inventoryList);
     } catch (loadError) {
-      setError(loadError.message);
+      showError(loadError.message);
     } finally {
       setLoading(false);
     }
@@ -52,18 +51,15 @@ export default function InventoryPage() {
   );
 
   async function adjustStock(productId, adjustment) {
-    setError("");
-    setSuccess("");
-
     try {
       await authenticatedRequest(`/inventory/${productId}/adjust`, token, {
         method: "POST",
         body: JSON.stringify({ adjustment }),
       });
-      setSuccess("Inventory updated from inventory-service.");
+      showSuccess("Stock updated successfully.");
       await loadRows();
     } catch (adjustError) {
-      setError(adjustError.message);
+      showError(adjustError.message);
     }
   }
 
@@ -79,18 +75,14 @@ export default function InventoryPage() {
               Inventory
             </h1>
             <p className="mt-4 max-w-[34rem] text-sm leading-relaxed text-muted">
-              Product data comes from product-service. Stock adjustments hit inventory-service.
-              Product creation and deletion are enforced by backend RBAC as ADMIN-only mutations,
-              so this warehouse route focuses on live stock operations.
+              View current stock levels across all products. Adjust available inventory and monitor
+              low-stock alerts in real time.
             </p>
           </div>
 
-          {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
-          {success ? <StatusBanner tone="success">{success}</StatusBanner> : null}
-
           <div className="grid gap-4">
             {loading ? (
-              <StatusBanner>Loading product and inventory data</StatusBanner>
+              <StatusBanner>Loading inventory</StatusBanner>
             ) : (
               rows.map((row) => (
                 <article key={row.product.id} className="border border-line p-5">
@@ -155,7 +147,7 @@ export default function InventoryPage() {
             </h2>
             <div className="mt-6 space-y-4">
               {lowStockRows.length === 0 ? (
-                <p className="text-sm text-muted">No low stock rows detected.</p>
+                <p className="text-sm text-muted">All products are well stocked.</p>
               ) : (
                 lowStockRows.map((row) => (
                   <div key={row.product.id} className="border border-line p-4">
@@ -167,17 +159,6 @@ export default function InventoryPage() {
                 ))
               )}
             </div>
-          </section>
-
-          <section className="border border-line p-6">
-            <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-              RBAC
-            </h2>
-            <p className="mt-6 text-sm leading-relaxed text-muted">
-              Verified from service middleware: `WAREHOUSE_STAFF` can adjust stock at
-              `/inventory/:product_id/adjust`, while product creation and deletion remain
-              `ADMIN`-only on product-service.
-            </p>
           </section>
         </aside>
       </div>

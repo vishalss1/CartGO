@@ -1,8 +1,8 @@
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+  import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 export const GATEWAY_HEALTH_URL =
-  import.meta.env.VITE_GATEWAY_HEALTH_URL ?? "http://localhost:8080/health";
+  import.meta.env.VITE_GATEWAY_HEALTH_URL ?? "/health";
 
 export const ROLE_TO_ROUTE = {
   CUSTOMER: "/shop",

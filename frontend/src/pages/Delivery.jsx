@@ -4,23 +4,22 @@ import StatusBanner from "../components/StatusBanner";
 import { authenticatedRequest } from "../utils/api";
 import { DELIVERY_STATUSES } from "../utils/constants";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function DeliveryPage() {
   const { token, user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [deliveries, setDeliveries] = useState([]);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState("");
 
   async function loadDeliveries() {
     setLoading(true);
-    setError("");
     try {
       const deliveryList = await authenticatedRequest(`/deliveries/partner/${user.id}`, token);
       setDeliveries(Array.isArray(deliveryList) ? deliveryList : []);
     } catch (loadError) {
-      setError(loadError.message);
+      showError(loadError.message);
     } finally {
       setLoading(false);
     }
@@ -32,8 +31,6 @@ export default function DeliveryPage() {
 
   async function updateStatus(deliveryId, status) {
     setUpdatingId(deliveryId);
-    setError("");
-    setSuccess("");
 
     try {
       await authenticatedRequest(`/deliveries/${deliveryId}/status`, token, {
@@ -43,10 +40,10 @@ export default function DeliveryPage() {
           delivery_person_id: user.id,
         }),
       });
-      setSuccess(`Delivery ${deliveryId} updated to ${status}.`);
+      showSuccess(`Delivery updated to ${status.replaceAll("_", " ").toLowerCase()}.`);
       await loadDeliveries();
     } catch (updateError) {
-      setError(updateError.message);
+      showError(updateError.message);
     } finally {
       setUpdatingId("");
     }
@@ -63,19 +60,16 @@ export default function DeliveryPage() {
             Delivery
           </h1>
           <p className="mt-4 max-w-[34rem] text-sm leading-relaxed text-muted">
-            Assigned deliveries are loaded from delivery-service using your authenticated user ID.
-            Status updates post back to the same service through the gateway.
+            View your assigned deliveries and update their status as you pick up and complete
+            each order.
           </p>
         </section>
 
-        {error ? <StatusBanner tone="error">{error}</StatusBanner> : null}
-        {success ? <StatusBanner tone="success">{success}</StatusBanner> : null}
-
         <div className="grid gap-4">
           {loading ? (
-            <StatusBanner>Loading assigned deliveries</StatusBanner>
+            <StatusBanner>Loading deliveries</StatusBanner>
           ) : deliveries.length === 0 ? (
-            <StatusBanner>No deliveries assigned to this partner ID.</StatusBanner>
+            <StatusBanner>No deliveries assigned</StatusBanner>
           ) : (
             deliveries.map((delivery) => (
               <article key={delivery.id} className="border border-line p-5">
