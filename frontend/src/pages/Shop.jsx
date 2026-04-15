@@ -396,10 +396,13 @@ export default function ShopPage() {
                   <div key={order.id} className="border border-line p-4 transition-all hover:border-paper">
                     <div className="flex items-center justify-between gap-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                          <p onClick={() => navigate(`/order/${order.id}`)} className="cursor-pointer font-semibold uppercase tracking-[0.08em] hover:text-paper hover:underline">{order.status}</p>
-                          <OrderDeliveryStatus orderId={order.id} token={token} />
-                        </div>
+                        <p onClick={() => navigate(`/order/${order.id}`)} className="cursor-pointer font-semibold uppercase tracking-[0.08em] hover:text-paper hover:underline">
+                          {order.status === "CONFIRMED" ? (
+                            <OrderDeliveryStatus orderId={order.id} token={token} />
+                          ) : (
+                            order.status
+                          )}
+                        </p>
                         <p onClick={() => navigate(`/order/${order.id}`)} className="cursor-pointer text-[10px] text-muted hover:text-paper">{order.id}</p>
                       </div>
                       <span className="text-lg font-semibold">${order.total_amount.toFixed(2)}</span>

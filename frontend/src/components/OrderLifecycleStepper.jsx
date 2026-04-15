@@ -14,12 +14,16 @@ export default function OrderLifecycleStepper({ currentState, inconsistency }) {
   const getStepStatus = (stepId, index) => {
     if (inconsistency) return "error";
     
-    const currentIndex = STEPS.findIndex(s => s.id === currentState) || 0;
+    const currentIndex = STEPS.findIndex(s => s.id === currentState);
     const stepIndex = STEPS.findIndex(s => s.id === stepId);
     
+    if (currentIndex === -1) return "pending";
     if (currentState === SYSTEM_STATES.PAYMENT_FAILED && stepId === SYSTEM_STATES.PAYMENT_SUCCESS) return "failed";
-    if (stepId === currentState) return "active";
-    if (stepIndex < currentIndex && currentIndex !== -1) return "completed";
+    if (stepIndex < currentIndex) return "completed";
+    if (stepIndex === currentIndex) {
+      // Mark final step as completed instead of active
+      return currentIndex === STEPS.length - 1 ? "completed" : "active";
+    }
     return "pending";
   };
 
