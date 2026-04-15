@@ -18,10 +18,13 @@ export default function App() {
       <Route path="/" element={<RoleRedirectPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route element={<ProtectedRoute allowedRole="SUPPORT_AGENT" />}>
+        <Route path="/support" element={<SupportPage />} />
+      </Route>
       <Route element={<ProtectedRoute allowedRole="CUSTOMER" />}>
         <Route path="/shop" element={<ShopPage />} />
         <Route path="/checkout/payment" element={<CheckoutPaymentPage />} />
-        <Route path="/support" element={<SupportPortalPage />} />
+        <Route path="/support-portal" element={<SupportPortalPage />} />
         <Route path="/order/:orderId" element={<OrderDetailsPage />} />
       </Route>
       <Route element={<ProtectedRoute allowedRole="WAREHOUSE_STAFF" />}>
@@ -32,9 +35,6 @@ export default function App() {
       </Route>
       <Route element={<ProtectedRoute allowedRole="ADMIN" />}>
         <Route path="/admin" element={<AdminPage />} />
-      </Route>
-      <Route element={<ProtectedRoute allowedRole="SUPPORT_AGENT" />}>
-        <Route path="/support" element={<SupportPage />} />
       </Route>
       <Route path="*" element={<RoleRedirectPage />} />
     </Routes>

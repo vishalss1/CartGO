@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import MainLayout from "../layout/MainLayout";
 import StatusBanner from "../components/StatusBanner";
-import { authenticatedRequest } from "../utils/api";
+import { authenticatedRequest, getTicketMessages, addTicketMessage } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { logger } from "../utils/logger";
@@ -15,7 +15,9 @@ export default function SupportPortalPage() {
   const prefilledOrderId = searchParams.get("order_id") || "";
 
   const [tickets, setTickets] = useState([]);
+  const [ticketMessages, setTicketMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [subject, setSubject] = useState(prefilledOrderId ? `Issue with Order #${prefilledOrderId.slice(0, 8)}` : "");
   const [message, setMessage] = useState(prefilledOrderId ? `I am having an issue with my order (ID: ${prefilledOrderId}). ` : "");
@@ -31,8 +33,6 @@ export default function SupportPortalPage() {
       setRefreshing(true);
     }
     try {
-      // For CUSTOMER, ListTickets should return only their tickets (backend implementation dependent)
-      // Assuming GET /support/tickets filters by token's userId
       const data = await authenticatedRequest("/support/tickets", token);
       const ticketList = Array.isArray(data) ? data : [];
       
@@ -49,18 +49,50 @@ export default function SupportPortalPage() {
     }
   };
 
+  const loadTicketMessages = async (ticketId) => {
+    setLoadingMessages(true);
+    try {
+      const messages = await getTicketMessages(ticketId, token);
+      const validMessages = Array.isArray(messages) ? messages : [];
+      logger.info(`SupportPortal: Loaded ${validMessages.length} messages for ticket ${ticketId}`);
+      setTicketMessages(validMessages);
+    } catch (err) {
+      logger.error("SupportPortal Load Messages Error:", err);
+      setTicketMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
   useEffect(() => {
     loadTickets();
     const interval = setInterval(() => loadTickets(true), 15000);
     return () => clearInterval(interval);
   }, [token]);
 
+  // Load messages when activeTicketId changes
+  useEffect(() => {
+    if (activeTicketId) {
+      loadTicketMessages(activeTicketId);
+      const interval = setInterval(() => loadTicketMessages(activeTicketId), 10000);
+      return () => clearInterval(interval);
+    } else {
+      setTicketMessages([]);
+    }
+  }, [activeTicketId, token]);
+
   async function handleCreateTicket(e) {
     e.preventDefault();
     setCreating(true);
     try {
+      // Generate idempotency key to prevent duplicate tickets
+      const idempotencyKey = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       await authenticatedRequest("/support/tickets", token, {
         method: "POST",
+        headers: {
+          "X-Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({ 
           subject, 
           message,
@@ -82,14 +114,15 @@ export default function SupportPortalPage() {
     if (!reply.trim()) return;
     setSendingReply(true);
     try {
-      await authenticatedRequest(`/support/tickets/${ticketId}/messages`, token, {
-        method: "POST",
-        body: JSON.stringify({ message: reply }),
-      });
+      logger.info(`SupportPortal: Sending reply to ticket ${ticketId}`);
+      await addTicketMessage(ticketId, reply.trim(), token);
       setReply("");
-      showSuccess("Message sent.");
-      loadTickets(true);
+      showSuccess("Reply sent.");
+      // Refresh messages after sending
+      logger.info(`SupportPortal: Refreshing messages after reply`);
+      await loadTicketMessages(ticketId);
     } catch (err) {
+      logger.error("SupportPortal Add Message Error:", err);
       showError(err.message);
     } finally {
       setSendingReply(false);
@@ -201,9 +234,27 @@ export default function SupportPortalPage() {
                  
                  <div className="space-y-4">
                     <p className="text-[10px] font-bold uppercase text-muted">Conversation</p>
-                    <div className="border border-line bg-surface/50 p-4 text-xs italic text-muted">
-                       Reply from support will appear here.
-                    </div>
+                    {loadingMessages ? (
+                      <p className="text-xs text-muted">Loading messages...</p>
+                    ) : ticketMessages.length === 0 ? (
+                      <div className="border border-line bg-surface/50 p-4 text-xs italic text-muted">
+                        No messages yet. Support will reply soon.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {ticketMessages.map((msg) => (
+                          <div key={msg.id} className="border border-line p-3">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">
+                              {msg.sender_role === "SUPPORT_AGENT" ? "Support Agent" : "You"}
+                            </p>
+                            <p className="mt-2 text-sm leading-relaxed text-paper">{msg.content}</p>
+                            <p className="mt-1 text-[8px] text-muted">
+                              {new Date(msg.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                  </div>
               </div>
 

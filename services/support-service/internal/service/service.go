@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/services/support-service/internal/model"
@@ -99,26 +100,34 @@ func (s *Service) AssignTicket(ctx context.Context, ticketID uuid.UUID, agentID 
 }
 
 func (s *Service) AddMessage(ctx context.Context, ticketID uuid.UUID, senderID uuid.UUID, role string, content string) error {
+	log.Printf("[AddMessage] Starting: ticketID=%s, senderID=%s, role=%s", ticketID, senderID, role)
+
 	ticket, err := s.repo.GetTicket(ctx, ticketID)
 	if err != nil {
+		log.Printf("[AddMessage] GetTicket error: %v", err)
 		return err
 	}
 
 	if ticket.Status == model.StatusClosed {
+		log.Printf("[AddMessage] Ticket is closed")
 		return fmt.Errorf("cannot add messages to a closed ticket")
 	}
 
-	// RBAC: Only owner, assigned agent, or admin
+	// RBAC: Only owner, any support agent, or admin
 	authorized := false
 	if senderID == ticket.CustomerID {
 		authorized = true
-	} else if ticket.AssignedAgentID != nil && senderID == *ticket.AssignedAgentID {
+		log.Printf("[AddMessage] Authorized as ticket owner")
+	} else if role == "SUPPORT_AGENT" {
 		authorized = true
+		log.Printf("[AddMessage] Authorized as SUPPORT_AGENT")
 	} else if role == "ADMIN" {
 		authorized = true
+		log.Printf("[AddMessage] Authorized as ADMIN")
 	}
 
 	if !authorized {
+		log.Printf("[AddMessage] Authorization failed for senderID=%s, role=%s", senderID, role)
 		return fmt.Errorf("unauthorized to message this ticket")
 	}
 
@@ -129,7 +138,15 @@ func (s *Service) AddMessage(ctx context.Context, ticketID uuid.UUID, senderID u
 		Content:    content,
 	}
 
-	return s.repo.AddMessage(ctx, msg)
+	log.Printf("[AddMessage] Creating message for ticketID=%s with content length=%d", ticketID, len(content))
+	err = s.repo.AddMessage(ctx, msg)
+	if err != nil {
+		log.Printf("[AddMessage] Repository error: %v", err)
+		return err
+	}
+
+	log.Printf("[AddMessage] Successfully created message with ID=%s", msg.ID)
+	return nil
 }
 
 func (s *Service) ListMessages(ctx context.Context, ticketID uuid.UUID, customerID uuid.UUID, role string, limit, offset int) ([]*model.Message, error) {

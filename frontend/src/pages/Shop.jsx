@@ -56,12 +56,14 @@ export default function ShopPage() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [cart, setCart] = useState(getStoredCart);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshingOrders, setRefreshingOrders] = useState(false);
+  const [refreshingTickets, setRefreshingTickets] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState("");
 
   const loadOrders = async (silent = false) => {
@@ -76,6 +78,18 @@ export default function ShopPage() {
     }
   };
 
+  const loadTickets = async (silent = false) => {
+    if (!silent) setRefreshingTickets(true);
+    try {
+      const freshTickets = await authenticatedRequest(`/support/tickets`, token);
+      setTickets(Array.isArray(freshTickets) ? freshTickets : []);
+    } catch (err) {
+      if (!silent) showError(err.message);
+    } finally {
+      if (!silent) setRefreshingTickets(false);
+    }
+  };
+
   useEffect(() => {
     storeCart(cart);
   }, [cart]);
@@ -86,6 +100,13 @@ export default function ShopPage() {
     return () => clearInterval(interval);
   }, [token, user.id]);
 
+  // Load tickets on mount
+  useEffect(() => {
+    loadTickets();
+    const interval = setInterval(() => loadTickets(true), 15000);
+    return () => clearInterval(interval);
+  }, [token]);
+
   useEffect(() => {
     let active = true;
 
@@ -95,9 +116,10 @@ export default function ShopPage() {
       setLoading(true);
 
       try {
-        const [productList, orderList] = await Promise.all([
+        const [productList, orderList, ticketList] = await Promise.all([
           apiRequest("/products?limit=100&offset=0"),
           authenticatedRequest(`/orders/user/${user.id}`, token),
+          authenticatedRequest(`/support/tickets`, token),
         ]);
 
         if (!active) return;
@@ -134,6 +156,7 @@ export default function ShopPage() {
 
         setProducts(finalProducts);
         setOrders(Array.isArray(orderList) ? orderList : []);
+        setTickets(Array.isArray(ticketList) ? ticketList : []);
       } catch (loadError) {
         if (active) showError(loadError.message);
       } finally {
@@ -428,7 +451,7 @@ export default function ShopPage() {
                       )}
                       <button
                         type="button"
-                        onClick={() => navigate(`/support?order_id=${order.id}`)}
+                        onClick={() => navigate(`/support-portal?order_id=${order.id}`)}
                         className="border border-line px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:border-paper hover:text-paper"
                       >
                         Report Issue
@@ -438,6 +461,56 @@ export default function ShopPage() {
                 ))
               )}
             </div>
+          </section>
+
+          <section className="border border-line p-6">
+            <div className="flex items-end justify-between gap-4">
+              <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
+                Support
+              </h2>
+              <button
+                type="button"
+                onClick={() => loadTickets()}
+                disabled={refreshingTickets}
+                className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted underline transition-colors hover:text-paper disabled:cursor-not-allowed"
+              >
+                {refreshingTickets ? "Syncing" : "Refresh"}
+              </button>
+            </div>
+            <div className="mt-6 space-y-4">
+              {tickets.length === 0 ? (
+                <p className="text-sm text-muted">No support tickets yet.</p>
+              ) : (
+                tickets.map((ticket) => (
+                  <div key={ticket.id} className="border border-line p-4 transition-all hover:border-paper">
+                    <div className="space-y-2">
+                      <p className="font-semibold uppercase tracking-[0.08em]">
+                        {ticket.subject}
+                      </p>
+                      <p className="text-[10px] text-muted">Ticket: {ticket.id.slice(0, 8)}</p>
+                      {ticket.order_id && (
+                        <p className="text-[10px] text-muted">Order: {ticket.order_id.slice(0, 8)}</p>
+                      )}
+                      <p className="text-[10px] text-muted">Status: {ticket.status.replace(/_/g, " ").toLowerCase()}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/support-portal")}
+                      className="mt-3 inline-flex border border-line px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:border-paper hover:text-paper"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/support-portal")}
+              className="mt-4 inline-flex w-full justify-center border border-line px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:border-paper hover:text-paper"
+            >
+              Create New Ticket
+            </button>
           </section>
         </aside>
       </div>

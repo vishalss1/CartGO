@@ -90,8 +90,11 @@ export default function SupportPage() {
 
     try {
       const messageList = await getTicketMessages(ticketId, token);
-      setMessages(Array.isArray(messageList) ? messageList : []);
-    } catch {
+      const validMessages = Array.isArray(messageList) ? messageList : [];
+      logger.info(`Support: Loaded ${validMessages.length} messages for ticket ${ticketId}`);
+      setMessages(validMessages);
+    } catch (error) {
+      logger.error("Support Toggle Messages Error:", error);
       setMessages([]);
     } finally {
       setMessagesLoading(false);
@@ -106,13 +109,19 @@ export default function SupportPage() {
     setReplying(true);
 
     try {
+      logger.info(`Support: Sending reply to ticket ${ticketId}`);
       await addTicketMessage(ticketId, replyText.trim(), token);
       setReplyText("");
       showSuccess("Reply sent.");
+      
+      logger.info(`Support: Refreshing messages for ticket ${ticketId}`);
       // Refresh only messages
       const messageList = await getTicketMessages(ticketId, token);
-      setMessages(Array.isArray(messageList) ? messageList : []);
+      const validMessages = Array.isArray(messageList) ? messageList : [];
+      logger.info(`Support: Received ${validMessages.length} messages after reply`);
+      setMessages(validMessages);
     } catch (replyError) {
+      logger.error("Support Reply Error:", replyError);
       showError(replyError.message);
     } finally {
       setReplying(false);

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/util"
@@ -20,10 +21,10 @@ func (r *Repository) CreateTicketWithIdempotency(ctx context.Context, key string
 
 	// 1. Attempt to insert idempotency key
 	var existingTicketID sql.NullString
-	err = tx.QueryRowContext(ctx, 
-		"INSERT INTO idempotency_keys (key, customer_id) VALUES ($1, $2) ON CONFLICT (key, customer_id) DO UPDATE SET key = EXCLUDED.key RETURNING ticket_id", 
+	err = tx.QueryRowContext(ctx,
+		"INSERT INTO idempotency_keys (key, customer_id) VALUES ($1, $2) ON CONFLICT (key, customer_id) DO UPDATE SET key = EXCLUDED.key RETURNING ticket_id",
 		key, ticket.CustomerID).Scan(&existingTicketID)
-	
+
 	if err == nil && existingTicketID.Valid {
 		// Ticket already exists for this key
 		parsedID, _ := uuid.Parse(existingTicketID.String)
@@ -62,14 +63,14 @@ func (r *Repository) CreateTicketWithIdempotency(ctx context.Context, key string
 func (r *Repository) getTicketByID(ctx context.Context, tx *sql.Tx, id uuid.UUID) (*model.Ticket, error) {
 	t := &model.Ticket{}
 	query := "SELECT id, customer_id, order_id, assigned_agent_id, status, priority, subject, version, created_at, updated_at FROM tickets WHERE id = $1"
-	
+
 	var err error
 	if tx != nil {
 		err = tx.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.OrderID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
 	} else {
 		err = r.db.QueryRowContext(ctx, query, id).Scan(&t.ID, &t.CustomerID, &t.OrderID, &t.AssignedAgentID, &t.Status, &t.Priority, &t.Subject, &t.Version, &t.CreatedAt, &t.UpdatedAt)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -142,34 +143,47 @@ func (r *Repository) UpdateTicket(ctx context.Context, ticket *model.Ticket, act
 }
 
 func (r *Repository) AddMessage(ctx context.Context, msg *model.Message) error {
+	log.Printf("[Repository.AddMessage] Starting for ticketID=%s from senderID=%s", msg.TicketID, msg.SenderID)
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		log.Printf("[Repository.AddMessage] BeginTx error: %v", err)
 		return err
 	}
 	defer tx.Rollback()
 
 	msg.ID = util.GenerateUUID()
+	log.Printf("[Repository.AddMessage] Generated message ID: %s", msg.ID)
+
 	err = tx.QueryRowContext(ctx,
 		"INSERT INTO messages (id, ticket_id, sender_id, sender_role, content) VALUES ($1, $2, $3, $4, $5) RETURNING created_at",
 		msg.ID, msg.TicketID, msg.SenderID, msg.SenderRole, msg.Content).Scan(&msg.CreatedAt)
 	if err != nil {
+		log.Printf("[Repository.AddMessage] Insert error: %v", err)
 		return err
 	}
+
+	log.Printf("[Repository.AddMessage] Message inserted, CreatedAt=%s", msg.CreatedAt)
 
 	// Audit Log
 	auditID := util.GenerateUUID()
 	_, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (id, ticket_id, action, performed_by) VALUES ($1, $2, $3, $4)", auditID, msg.TicketID, model.ActionMessageAdded, msg.SenderID)
 	if err != nil {
+		log.Printf("[Repository.AddMessage] Audit insert error: %v", err)
 		return err
 	}
 
+	log.Printf("[Repository.AddMessage] Audit log created, committing transaction")
 	return tx.Commit()
 }
 
 func (r *Repository) ListMessages(ctx context.Context, ticketID uuid.UUID, limit, offset int) ([]*model.Message, error) {
+	log.Printf("[Repository.ListMessages] Fetching messages for ticketID=%s (limit=%d, offset=%d)", ticketID, limit, offset)
+
 	query := "SELECT id, ticket_id, sender_id, sender_role, content, created_at FROM messages WHERE ticket_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3"
 	rows, err := r.db.QueryContext(ctx, query, ticketID, limit, offset)
 	if err != nil {
+		log.Printf("[Repository.ListMessages] Query error: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -178,9 +192,11 @@ func (r *Repository) ListMessages(ctx context.Context, ticketID uuid.UUID, limit
 	for rows.Next() {
 		m := &model.Message{}
 		if err := rows.Scan(&m.ID, &m.TicketID, &m.SenderID, &m.SenderRole, &m.Content, &m.CreatedAt); err != nil {
+			log.Printf("[Repository.ListMessages] Scan error: %v", err)
 			return nil, err
 		}
 		messages = append(messages, m)
 	}
+	log.Printf("[Repository.ListMessages] Found %d messages for ticketID=%s", len(messages), ticketID)
 	return messages, nil
 }
