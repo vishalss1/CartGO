@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -25,6 +26,34 @@ func NewOrderHandler(s service.OrderService) *OrderHandler {
 		service: s,
 		v:       validator.New(),
 	}
+}
+
+func (h *OrderHandler) ListAllOrders(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	status := query.Get("status")
+	userID := query.Get("user_id")
+	
+	page, _ := strconv.Atoi(query.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	if limit < 1 {
+		limit = 20
+	}
+
+	orders, total, err := h.service.ListAllOrders(r.Context(), status, userID, page, limit)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"data":  orders,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
 
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +118,23 @@ func (h *OrderHandler) GetOrdersByUserID(w http.ResponseWriter, r *http.Request)
 	util.WriteJSON(w, http.StatusOK, orders)
 }
 
+func (h *OrderHandler) ConfirmAfterPayment(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		util.WriteError(w, http.StatusBadRequest, "Invalid order ID format")
+		return
+	}
+
+	order, err := h.service.ConfirmPayment(r.Context(), id)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, order)
+}
+
 func (h *OrderHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	code := http.StatusInternalServerError
 	msg := "An unexpected error occurred"
@@ -105,6 +151,9 @@ func (h *OrderHandler) handleError(w http.ResponseWriter, r *http.Request, err e
 		msg = err.Error()
 	case errors.Is(err, service.ErrPaymentFailed):
 		code = http.StatusPaymentRequired
+		msg = err.Error()
+	case errors.Is(err, service.ErrPaymentNotSuccessful):
+		code = http.StatusConflict
 		msg = err.Error()
 	}
 

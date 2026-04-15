@@ -68,7 +68,9 @@ func main() {
 				Patch("/status", deliveryHandler.UpdateDeliveryStatus)
 		})
 
+		r.Get("/order/{order_id}", deliveryHandler.GetDeliveryByOrderID)
 		r.Get("/partner/{partner_id}", deliveryHandler.ListDeliveriesByPartner)
+		r.Get("/available", deliveryHandler.ListAvailableDeliveries)
 	})
 
 	// Setup server

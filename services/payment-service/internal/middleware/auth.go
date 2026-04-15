@@ -32,11 +32,19 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			internalRole := r.Header.Get(auth.HeaderUserRole)
 
 			if internalRole != "" {
-				userID, err := uuid.Parse(internalUserIDStr)
-				if err != nil {
-					util.WriteError(w, http.StatusUnauthorized, "Invalid internal user id")
+				var userID uuid.UUID
+				if internalUserIDStr != "" {
+					var err error
+					userID, err = uuid.Parse(internalUserIDStr)
+					if err != nil {
+						util.WriteError(w, http.StatusUnauthorized, "Invalid internal user id")
+						return
+					}
+				} else if !strings.HasPrefix(internalRole, "SERVICE_") {
+					util.WriteError(w, http.StatusUnauthorized, "Internal user id required for non-service roles")
 					return
 				}
+				
 				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
 				ctx = context.WithValue(ctx, UserIDContextKey, userID)
 				next.ServeHTTP(w, r.WithContext(ctx))

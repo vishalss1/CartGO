@@ -43,13 +43,15 @@ func (r *PostgresOrderRepository) Create(ctx context.Context, order *model.Order
 
 	// Insert order items and return generated IDs
 	queryItem := `
-		INSERT INTO order_items (id, order_id, product_id, quantity, price_per_unit)
-		VALUES ($1, $2, $3, $4, $5)`
+		INSERT INTO order_items (id, order_id, product_id, product_name, category, quantity, price_per_unit)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	for i := range order.Items {
 		order.Items[i].OrderID = order.ID
 		order.Items[i].ID = util.GenerateUUID()
 		_, err = tx.ExecContext(ctx, queryItem,
-			order.Items[i].ID, order.Items[i].OrderID, order.Items[i].ProductID, order.Items[i].Quantity, order.Items[i].PricePerUnit)
+			order.Items[i].ID, order.Items[i].OrderID, order.Items[i].ProductID, 
+			order.Items[i].ProductName, order.Items[i].Category,
+			order.Items[i].Quantity, order.Items[i].PricePerUnit)
 		if err != nil {
 			return fmt.Errorf("failed to insert order item at index %d: %v", i, err)
 		}
@@ -76,7 +78,7 @@ func (r *PostgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 
 	// Get items
 	queryItems := `
-		SELECT id, order_id, product_id, quantity, price_per_unit
+		SELECT id, order_id, product_id, product_name, category, quantity, price_per_unit
 		FROM order_items
 		WHERE order_id = $1`
 	rows, err := r.db.QueryContext(ctx, queryItems, id)
@@ -87,7 +89,7 @@ func (r *PostgresOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 
 	for rows.Next() {
 		item := model.OrderItem{}
-		err := rows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Quantity, &item.PricePerUnit)
+		err := rows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.ProductName, &item.Category, &item.Quantity, &item.PricePerUnit)
 		if err != nil {
 			return nil, err
 		}
@@ -121,6 +123,58 @@ func (r *PostgresOrderRepository) GetByUserID(ctx context.Context, userID uuid.U
 	}
 
 	return orders, nil
+}
+
+func (r *PostgresOrderRepository) ListAll(ctx context.Context, status string, userID string, limit, offset int) ([]*model.Order, int, error) {
+	where := "WHERE 1=1"
+	args := []interface{}{}
+	argIdx := 1
+
+	if status != "" {
+		where += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, status)
+		argIdx++
+	}
+	if userID != "" {
+		where += fmt.Sprintf(" AND user_id = $%d", argIdx)
+		args = append(args, userID)
+		argIdx++
+	}
+
+	// 1. Get total count
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM orders %s", where)
+	var total int
+	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 2. Get data
+	dataQuery := fmt.Sprintf(`
+		SELECT id, user_id, total_amount, status, delivery_address, created_at, updated_at 
+		FROM orders 
+		%s 
+		ORDER BY created_at DESC 
+		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+	
+	finalArgs := append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, dataQuery, finalArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var orders []*model.Order
+	for rows.Next() {
+		order := &model.Order{}
+		err := rows.Scan(&order.ID, &order.UserID, &order.TotalAmount, &order.Status, &order.DeliveryAddress, &order.CreatedAt, &order.UpdatedAt)
+		if err != nil {
+			return nil, 0, err
+		}
+		orders = append(orders, order)
+	}
+
+	return orders, total, nil
 }
 
 func (r *PostgresOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status model.OrderStatus) error {

@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/model"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
@@ -39,6 +41,33 @@ func (h *PaymentHandler) ProcessPayment(w http.ResponseWriter, r *http.Request) 
 	payment, err := h.service.ProcessPayment(r.Context(), req.OrderID, req.Amount)
 	if err != nil {
 		h.handleError(w, r, err)
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, model.PaymentResponse{
+		PaymentID: payment.ID,
+		OrderID:   payment.OrderID,
+		Status:    string(payment.Status),
+		Amount:    payment.Amount,
+	})
+}
+
+func (h *PaymentHandler) GetPaymentByOrderID(w http.ResponseWriter, r *http.Request) {
+	orderIDStr := chi.URLParam(r, "order_id")
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		util.WriteError(w, http.StatusBadRequest, "Invalid order ID format")
+		return
+	}
+
+	payment, err := h.service.GetPaymentByOrderID(r.Context(), orderID)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	if payment == nil {
+		util.WriteError(w, http.StatusNotFound, "Payment record not found for this order")
 		return
 	}
 

@@ -13,9 +13,10 @@ import (
 )
 
 type Product struct {
-	ID    uuid.UUID `json:"id"`
-	Name  string    `json:"name"`
-	Price float64   `json:"price"`
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Category string    `json:"category"`
+	Price    float64   `json:"price"`
 }
 
 type ProductClient interface {
@@ -56,6 +57,9 @@ func (c *HttpProductClient) GetProduct(ctx context.Context, productID uuid.UUID)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("item no longer exists")
+		}
 		return nil, fmt.Errorf("failed to fetch product: status %d", resp.StatusCode)
 	}
 

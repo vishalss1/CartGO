@@ -11,13 +11,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/vishalss1/CartGO/pkg/util"
 	"github.com/vishalss1/CartGO/services/payment-service/db"
+	"github.com/vishalss1/CartGO/services/payment-service/internal/client"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/config"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/handler"
 	authmw "github.com/vishalss1/CartGO/services/payment-service/internal/middleware"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/repository/postgres"
 	"github.com/vishalss1/CartGO/services/payment-service/internal/service"
-	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 func main() {
@@ -35,9 +36,10 @@ func main() {
 
 	// Initialize repository
 	paymentRepo := postgres.NewPostgresPaymentRepository(conn)
+	orderClient := client.NewHttpOrderClient(cfg.OrderServiceURL)
 
 	// Initialize service
-	paymentService := service.NewPaymentService(paymentRepo)
+	paymentService := service.NewPaymentService(paymentRepo, orderClient)
 
 	// Initialize handler
 	paymentHandler := handler.NewPaymentHandler(paymentService)
@@ -66,6 +68,7 @@ func main() {
 	r.Route("/api/v1/payments", func(r chi.Router) {
 		r.Use(authProvider)
 		r.Post("/", paymentHandler.ProcessPayment)
+		r.Get("/order/{order_id}", paymentHandler.GetPaymentByOrderID)
 	})
 
 	// Setup server

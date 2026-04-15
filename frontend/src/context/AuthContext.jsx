@@ -76,6 +76,15 @@ export function AuthProvider({ children }) {
       active = false;
     };
   }, [refreshToken, token]);
+  
+  useEffect(() => {
+    const handleRefresh = (e) => {
+      setSession(e.detail);
+    };
+    
+    window.addEventListener("cartgo-auth-refresh", handleRefresh);
+    return () => window.removeEventListener("cartgo-auth-refresh", handleRefresh);
+  }, []);
 
   const value = useMemo(
     () => ({

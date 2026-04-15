@@ -79,7 +79,7 @@ func (r *PostgresDeliveryRepository) GetByID(ctx context.Context, id uuid.UUID) 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("delivery not found")
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get delivery: %v", err)
 	}
@@ -99,7 +99,7 @@ func (r *PostgresDeliveryRepository) GetByOrderID(ctx context.Context, orderID u
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("delivery not found")
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get delivery by order_id: %v", err)
 	}
@@ -132,3 +132,30 @@ func (r *PostgresDeliveryRepository) ListByPartnerID(ctx context.Context, partne
 
 	return deliveries, nil
 }
+
+func (r *PostgresDeliveryRepository) ListUnassigned(ctx context.Context) ([]*model.Delivery, error) {
+	query := `
+		SELECT id, order_id, status, delivery_address, delivery_person_id, created_at, updated_at
+		FROM deliveries
+		WHERE delivery_person_id IS NULL AND status = 'PENDING'
+		ORDER BY created_at ASC`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list unassigned deliveries: %v", err)
+	}
+	defer rows.Close()
+
+	var deliveries []*model.Delivery
+	for rows.Next() {
+		d := &model.Delivery{}
+		err := rows.Scan(&d.ID, &d.OrderID, &d.Status, &d.DeliveryAddress, &d.DeliveryPersonID, &d.CreatedAt, &d.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		deliveries = append(deliveries, d)
+	}
+
+	return deliveries, nil
+}
+

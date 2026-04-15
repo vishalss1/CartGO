@@ -68,6 +68,9 @@ func main() {
 	r.Route("/api/v1/orders", func(r chi.Router) {
 		r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
+		// Global orders list (Admin only)
+		r.With(customMiddleware.RoleMiddleware("ADMIN")).Get("/", orderHandler.ListAllOrders)
+
 		// Create order (Customer or Admin)
 		r.With(customMiddleware.RoleMiddleware("CUSTOMER", "ADMIN")).Post("/", orderHandler.CreateOrder)
 
@@ -76,6 +79,9 @@ func main() {
 
 		// Get orders for a user
 		r.Get("/user/{user_id}", orderHandler.GetOrdersByUserID)
+
+		// Confirm order after payment retry
+		r.Post("/{id}/confirm-after-payment", orderHandler.ConfirmAfterPayment)
 	})
 
 	// Setup server

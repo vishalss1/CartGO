@@ -5,6 +5,7 @@ import { authenticatedRequest, getTicketMessages, addTicketMessage } from "../ut
 import { TICKET_STATUSES } from "../utils/constants";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { logger } from "../utils/logger";
 
 export default function SupportPage() {
   const { token } = useAuth();
@@ -13,13 +14,17 @@ export default function SupportPage() {
   const [filters, setFilters] = useState({ orderId: "", status: "" });
   const [loading, setLoading] = useState(true);
   const [expandedTicketId, setExpandedTicketId] = useState("");
+  const [updatingId, setUpdatingId] = useState("");
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
 
-  async function loadTickets() {
-    setLoading(true);
+  async function loadTickets(silent = false) {
+    if (!silent) {
+      setTickets([]);
+      setLoading(true);
+    }
 
     try {
       const params = new URLSearchParams();
@@ -31,28 +36,45 @@ export default function SupportPage() {
       }
       const query = params.toString() ? `?${params.toString()}` : "";
       const ticketList = await authenticatedRequest(`/support/tickets${query}`, token);
-      setTickets(Array.isArray(ticketList) ? ticketList : []);
+      const validTickets = Array.isArray(ticketList) ? ticketList : [];
+      
+      logger.info(`SupportAgent: API returned ${validTickets.length} tickets.`);
+      setTickets(validTickets);
     } catch (loadError) {
-      showError(loadError.message);
+      if (!silent) showError(loadError.message);
+      logger.error("SupportAgent Load Error:", loadError);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     loadTickets();
+    const interval = setInterval(() => loadTickets(true), 15000);
+    return () => clearInterval(interval);
   }, []);
 
   async function updateStatus(ticketId, status) {
+    if (updatingId === ticketId) {
+      return;
+    }
+    setUpdatingId(ticketId);
+
     try {
       await authenticatedRequest(`/support/tickets/${ticketId}/status`, token, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
       showSuccess(`Ticket updated to ${status.replaceAll("_", " ").toLowerCase()}.`);
-      await loadTickets();
+      
+      // Update local state instead of full re-fetch
+      setTickets((current) =>
+        current.map((t) => (t.id === ticketId ? { ...t, status } : t)),
+      );
     } catch (updateError) {
       showError(updateError.message);
+    } finally {
+      setUpdatingId("");
     }
   }
 
@@ -77,7 +99,7 @@ export default function SupportPage() {
   }
 
   async function handleReply(ticketId) {
-    if (!replyText.trim()) {
+    if (!replyText.trim() || replying) {
       return;
     }
 
@@ -87,6 +109,7 @@ export default function SupportPage() {
       await addTicketMessage(ticketId, replyText.trim(), token);
       setReplyText("");
       showSuccess("Reply sent.");
+      // Refresh only messages
       const messageList = await getTicketMessages(ticketId, token);
       setMessages(Array.isArray(messageList) ? messageList : []);
     } catch (replyError) {
@@ -112,7 +135,7 @@ export default function SupportPage() {
           </p>
         </section>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto]">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto_auto]">
           <input
             value={filters.orderId}
             onChange={(event) => setFilters((current) => ({ ...current, orderId: event.target.value }))}
@@ -137,6 +160,14 @@ export default function SupportPage() {
             className="inline-flex bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white"
           >
             Apply filters
+          </button>
+          <button
+            type="button"
+            onClick={loadTickets}
+            disabled={loading}
+            className="inline-flex bg-surface border border-line px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-paper transition-colors hover:border-paper disabled:cursor-not-allowed"
+          >
+            {loading ? "Syncing" : "Sync tickets"}
           </button>
         </div>
 

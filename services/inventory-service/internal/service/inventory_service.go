@@ -83,16 +83,18 @@ func (s *inventoryService) ReserveStock(ctx context.Context, productID uuid.UUID
 		return fmt.Errorf("%w: %v", ErrInternal, err)
 	}
 
-	if (inv.Stock - inv.Reserved) < quantity {
-		return ErrInsufficientStock
-	}
-
 	err = s.repo.Reserve(ctx, productID, orderID, quantity, inv.Version)
 	if err != nil {
 		if errors.Is(err, repository.ErrIdempotent) {
 			return nil // Already reserved, success
 		}
 		if errors.Is(err, repository.ErrConflict) {
+			// This could be a version conflict or insufficient stock (since repo.Reserve returns ErrConflict for both)
+			// Let's check stock specifically to return a better error if possible
+			inv2, _ := s.repo.GetByProductID(ctx, productID)
+			if inv2 != nil && (inv2.Stock-inv2.Reserved) < quantity {
+				return ErrInsufficientStock
+			}
 			return ErrConflict
 		}
 		return fmt.Errorf("%w: %v", ErrInternal, err)

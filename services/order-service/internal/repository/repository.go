@@ -11,5 +11,6 @@ type OrderRepository interface {
 	Create(ctx context.Context, order *model.Order) error
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error)
+	ListAll(ctx context.Context, status string, userID string, limit, offset int) ([]*model.Order, int, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status model.OrderStatus) error
 }

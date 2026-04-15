@@ -1,14 +1,59 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import MainLayout from "../layout/MainLayout";
 import { getStoredCart, storeCart } from "../utils/auth";
 import { authenticatedRequest, apiRequest } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import StatusBanner from "../components/StatusBanner";
+import { logger } from "../utils/logger";
+
+function OrderDeliveryStatus({ orderId, token }) {
+  const [delivery, setDelivery] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchStatus() {
+      try {
+        const data = await authenticatedRequest(`/deliveries/order/${orderId}`, token);
+        if (active) setDelivery(data);
+      } catch {
+        if (active) setDelivery(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchStatus();
+    // Poll delivery status every 15s
+    const interval = setInterval(fetchStatus, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [orderId, token]);
+
+  if (loading) return <span className="text-[10px] uppercase tracking-widest text-muted">Tracking...</span>;
+  if (!delivery) return <span className="text-[10px] uppercase tracking-widest text-muted">Preparing</span>;
+
+  const statusColors = {
+    PENDING: "text-muted",
+    PICKED_UP: "text-accent",
+    DELIVERED: "text-paper",
+    CANCELLED: "text-red-500",
+  };
+
+  return (
+    <span className={`text-[10px] font-bold uppercase tracking-widest ${statusColors[delivery.status] || "text-muted"}`}>
+      {delivery.status.replace("_", " ")}
+    </span>
+  );
+}
 
 export default function ShopPage() {
   const { token, user } = useAuth();
   const { showSuccess, showError } = useToast();
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [cart, setCart] = useState(getStoredCart);
@@ -16,35 +61,83 @@ export default function ShopPage() {
   const [category, setCategory] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [loading, setLoading] = useState(true);
-  const [checkingOut, setCheckingOut] = useState(false);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
   const [payingOrderId, setPayingOrderId] = useState("");
+
+  const loadOrders = async (silent = false) => {
+    if (!silent) setRefreshingOrders(true);
+    try {
+      const freshOrders = await authenticatedRequest(`/orders/user/${user.id}`, token);
+      setOrders(Array.isArray(freshOrders) ? freshOrders : []);
+    } catch (err) {
+      if (!silent) showError(err.message);
+    } finally {
+      if (!silent) setRefreshingOrders(false);
+    }
+  };
 
   useEffect(() => {
     storeCart(cart);
   }, [cart]);
 
+  // Hybrid Sync: Polling every 15s
+  useEffect(() => {
+    const interval = setInterval(() => loadOrders(true), 15000);
+    return () => clearInterval(interval);
+  }, [token, user.id]);
+
   useEffect(() => {
     let active = true;
 
     async function loadData() {
+      // 1. Reset state (Guarantee clean start, avoid ghosting)
+      setProducts([]);
+      setLoading(true);
+
       try {
         const [productList, orderList] = await Promise.all([
           apiRequest("/products?limit=100&offset=0"),
           authenticatedRequest(`/orders/user/${user.id}`, token),
         ]);
-        if (!active) {
-          return;
-        }
-        setProducts(Array.isArray(productList) ? productList : []);
+
+        if (!active) return;
+
+        // ── Option B: Manual Merge with Inventory ──
+        const enriched = await Promise.all(
+          (productList ?? []).map(async (p) => {
+            // 1. Strict Validation Guard (Log & Skip Invalid)
+            if (!p.id || !p.name || typeof p.price !== "number") {
+              logger.error("[System Integrity] Malformed product record filtered:", p);
+              return null;
+            }
+
+            // 2. Anti-Regression Guard
+            const lowerName = p.name.toLowerCase();
+            if (lowerName.includes("test") || lowerName.includes("demo") || lowerName.includes("sample")) {
+              logger.warn(`[Anti-Regression] DEMO DATA DETECTED IN CATALOG: "${p.name}" (ID: ${p.id}). Please purge the database.`);
+            }
+
+            try {
+              const inv = await apiRequest(`/inventory/${p.id}`);
+              return { ...p, inventory: inv };
+            } catch {
+              logger.error(`[System Integrity] Missing inventory for product ${p.id}`);
+              return { ...p, inventory: null }; // Mark as invalid state
+            }
+          })
+        );
+
+        const finalProducts = enriched.filter(Boolean);
+        
+        // ── Traceability Logging (Dev-only) ──
+        logger.info(`Shop: API returned ${productList?.length || 0} products. Rendered ${finalProducts.length} valid items.`);
+
+        setProducts(finalProducts);
         setOrders(Array.isArray(orderList) ? orderList : []);
       } catch (loadError) {
-        if (active) {
-          showError(loadError.message);
-        }
+        if (active) showError(loadError.message);
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
@@ -92,42 +185,26 @@ export default function ShopPage() {
   function updateQuantity(productId, quantity) {
     setCart((current) =>
       current
-        .map((item) => (item.product_id === productId ? { ...item, quantity } : item))
+        .map((item) => (item.product_id === productId ? { ...item, quantity: Math.max(0, quantity) } : item))
         .filter((item) => item.quantity > 0),
     );
   }
 
   async function handleCheckout() {
-    setCheckingOut(true);
-
-    try {
-      await authenticatedRequest("/orders", token, {
-        method: "POST",
-        body: JSON.stringify({
-          items: cart.map((item) => ({
-            product_id: item.product_id,
-            quantity: item.quantity,
-          })),
-          delivery_address: deliveryAddress,
-        }),
-      });
-      const freshOrders = await authenticatedRequest(`/orders/user/${user.id}`, token);
-      setOrders(Array.isArray(freshOrders) ? freshOrders : []);
-      setCart([]);
-      storeCart([]);
-      setDeliveryAddress("");
-      showSuccess("Order placed successfully!");
-    } catch (checkoutError) {
-      showError(checkoutError.message);
-    } finally {
-      setCheckingOut(false);
+    if (cart.length === 0 || !deliveryAddress) {
+      return;
     }
+    // Redirect to dedicated payment page
+    navigate("/checkout/payment", {
+      state: { cart, deliveryAddress }
+    });
   }
 
   async function retryPayment(order) {
     setPayingOrderId(order.id);
 
     try {
+      // 1. Process Payment
       await authenticatedRequest("/payments", token, {
         method: "POST",
         body: JSON.stringify({
@@ -135,9 +212,16 @@ export default function ShopPage() {
           amount: order.total_amount,
         }),
       });
-      showSuccess("Payment processed successfully.");
-      const freshOrders = await authenticatedRequest(`/orders/user/${user.id}`, token);
-      setOrders(Array.isArray(freshOrders) ? freshOrders : []);
+
+      showSuccess("Payment successful. Finalizing order...");
+
+      // 2. Synchronize Order Fulfillment
+      await authenticatedRequest(`/orders/${order.id}/confirm-after-payment`, token, {
+        method: "POST"
+      });
+
+      showSuccess("Order confirmed and fulfillment triggered.");
+      await loadOrders();
     } catch (paymentError) {
       showError(paymentError.message);
     } finally {
@@ -188,32 +272,51 @@ export default function ShopPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {loading ? (
               <StatusBanner>Loading products</StatusBanner>
+            ) : filteredProducts.length === 0 ? (
+              <div className="md:col-span-2 border border-line border-dashed p-12 text-center">
+                 <p className="text-sm font-black uppercase tracking-[0.2em] text-muted">No products available in the catalog</p>
+                 <p className="mt-2 text-[10px] text-muted uppercase tracking-widest">Add products via the Admin Dashboard to see them here.</p>
+              </div>
             ) : (
-              filteredProducts.map((product) => (
-                <article key={product.id} className="border border-line p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-[1.8rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-                        {product.name}
-                      </h2>
-                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted">
-                        {product.category}
-                      </p>
+              filteredProducts.map((product) => {
+                const isOutOfStock = product.inventory && product.inventory.available_stock <= 0;
+                const isInvalid = !product.inventory;
+
+                return (
+                  <article key={product.id} className="border border-line p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-[1.8rem] font-extrabold uppercase leading-[0.92] tracking-hero">
+                          {product.name}
+                        </h2>
+                        <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted">
+                          {product.category}
+                        </p>
+                      </div>
+                      <span className="text-lg font-semibold text-paper">
+                        ${product.price.toFixed(2)}
+                      </span>
                     </div>
-                    <span className="text-lg font-semibold text-paper">
-                      ${product.price.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="mt-5 text-sm leading-relaxed text-muted">{product.description}</p>
-                  <button
-                    type="button"
-                    onClick={() => addToCart(product)}
-                    className="mt-6 inline-flex bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white"
-                  >
-                    Add to cart
-                  </button>
-                </article>
-              ))
+                    <p className="mt-5 text-sm leading-relaxed text-muted">{product.description}</p>
+                    
+                    <div className="mt-6 flex items-center justify-between">
+                      {isInvalid ? (
+                        <span className="text-[10px] font-black uppercase tracking-widest text-red-500">System Error: No Inventory</span>
+                      ) : isOutOfStock ? (
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted">Out of Stock</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => addToCart(product)}
+                          className="inline-flex bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white"
+                        >
+                          Add to cart
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
         </section>
@@ -263,41 +366,71 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={checkingOut || cart.length === 0 || !deliveryAddress}
-                className="mt-5 inline-flex bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line"
+                disabled={cart.length === 0 || !deliveryAddress}
+                className="mt-5 inline-flex w-full justify-center bg-paper px-4 py-4 text-xs font-black uppercase tracking-[0.2em] text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line"
               >
-                {checkingOut ? "Submitting order" : "Checkout"}
+                Go to Checkout
               </button>
             </div>
           </section>
 
           <section className="border border-line p-6">
-            <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-              Orders
-            </h2>
+            <div className="flex items-end justify-between gap-4">
+              <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
+                Orders
+              </h2>
+              <button
+                type="button"
+                onClick={() => loadOrders()}
+                disabled={refreshingOrders}
+                className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted underline transition-colors hover:text-paper disabled:cursor-not-allowed"
+              >
+                {refreshingOrders ? "Syncing" : "Refresh"}
+              </button>
+            </div>
             <div className="mt-6 space-y-4">
               {orders.length === 0 ? (
                 <p className="text-sm text-muted">No orders yet.</p>
               ) : (
                 orders.map((order) => (
-                  <div key={order.id} className="border border-line p-4">
+                  <div key={order.id} className="border border-line p-4 transition-all hover:border-paper">
                     <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold uppercase tracking-[0.08em]">{order.status}</p>
-                        <p className="text-sm text-muted">{order.id}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          <p onClick={() => navigate(`/order/${order.id}`)} className="cursor-pointer font-semibold uppercase tracking-[0.08em] hover:text-paper hover:underline">{order.status}</p>
+                          <OrderDeliveryStatus orderId={order.id} token={token} />
+                        </div>
+                        <p onClick={() => navigate(`/order/${order.id}`)} className="cursor-pointer text-[10px] text-muted hover:text-paper">{order.id}</p>
                       </div>
                       <span className="text-lg font-semibold">${order.total_amount.toFixed(2)}</span>
                     </div>
-                    {order.status === "FAILED" ? (
+                    
+                    <div className="mt-4 flex flex-wrap gap-3">
                       <button
                         type="button"
-                        onClick={() => retryPayment(order)}
-                        disabled={payingOrderId === order.id}
-                        className="mt-4 inline-flex bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line"
+                        onClick={() => navigate(`/order/${order.id}`)}
+                        className="border border-paper border-opacity-30 bg-paper bg-opacity-5 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-paper transition-all hover:bg-opacity-20"
                       >
-                        {payingOrderId === order.id ? "Processing payment" : "Retry payment"}
+                        View System Trace
                       </button>
-                    ) : null}
+                      {order.status === "FAILED" && (
+                        <button
+                          type="button"
+                          onClick={() => retryPayment(order)}
+                          disabled={payingOrderId === order.id}
+                          className="bg-paper px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-surface transition-colors hover:bg-white disabled:cursor-not-allowed"
+                        >
+                          {payingOrderId === order.id ? "Processing" : "Retry payment"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/support?order_id=${order.id}`)}
+                        className="border border-line px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:border-paper hover:text-paper"
+                      >
+                        Report Issue
+                      </button>
+                    </div>
                   </div>
                 ))
               )}

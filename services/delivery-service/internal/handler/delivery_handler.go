@@ -108,6 +108,34 @@ func (h *DeliveryHandler) ListDeliveriesByPartner(w http.ResponseWriter, r *http
 	util.WriteJSON(w, http.StatusOK, deliveries)
 }
 
+func (h *DeliveryHandler) ListAvailableDeliveries(w http.ResponseWriter, r *http.Request) {
+	deliveries, err := h.service.ListAvailableDeliveries(r.Context())
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, deliveries)
+}
+
+
+func (h *DeliveryHandler) GetDeliveryByOrderID(w http.ResponseWriter, r *http.Request) {
+	orderIDStr := chi.URLParam(r, "order_id")
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		util.WriteError(w, http.StatusBadRequest, "Invalid order ID format")
+		return
+	}
+
+	delivery, err := h.service.GetDeliveryByOrderID(r.Context(), orderID)
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, delivery)
+}
+
 func (h *DeliveryHandler) handleError(w http.ResponseWriter, r *http.Request, err error) {
 	code := http.StatusInternalServerError
 	msg := "An unexpected error occurred"

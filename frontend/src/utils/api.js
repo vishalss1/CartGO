@@ -1,5 +1,5 @@
 import { API_BASE_URL, GATEWAY_HEALTH_URL } from "./constants";
-import { clearStoredSession } from "./auth";
+import { clearStoredSession, getStoredSession, storeSession } from "./auth";
 
 /**
  * Sanitize backend error messages to prevent exposing internal details.
@@ -48,6 +48,44 @@ function sanitizeErrorMessage(raw) {
   return "Something went wrong. Please try again.";
 }
 
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function subscribeTokenRefresh(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(token) {
+  refreshSubscribers.map((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+async function refreshTokens(refreshToken) {
+  const response = await fetch(`${API_BASE_URL}/user/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Refresh failed");
+  }
+
+  const data = await response.json();
+  const nextSession = {
+    token: data.data.access_token,
+    refreshToken: data.data.refresh_token,
+    user: data.data.user,
+  };
+  
+  storeSession(nextSession);
+  
+  // Notify AuthContext (if mounted) via custom event
+  window.dispatchEvent(new CustomEvent("cartgo-auth-refresh", { detail: nextSession }));
+  
+  return nextSession.token;
+}
+
 async function parseResponse(response, path) {
   const contentType = response.headers.get("content-type") ?? "";
   const isJson = contentType.includes("application/json");
@@ -60,12 +98,8 @@ async function parseResponse(response, path) {
       (path.startsWith("/user/login") || path.startsWith("/user/register"));
 
     if (response.status === 401 && !isAuthEndpoint) {
-      // Session expired — clear and redirect
-      clearStoredSession();
-      if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
-        window.location.href = "/login";
-      }
-      throw new Error("Your session has expired. Please sign in again.");
+      // Don't handle 401 here anymore, let apiRequest handle the retry logic
+      return { _retry: true, status: 401 };
     }
 
     if (response.status === 403) {
@@ -94,21 +128,73 @@ async function parseResponse(response, path) {
 }
 
 export async function apiRequest(path, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         Accept: "application/json",
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(options.headers ?? {}),
       },
     });
-  } catch {
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
     throw new Error("Unable to connect. Please check your internet connection.");
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  return parseResponse(response, path);
+  const result = await parseResponse(response, path);
+
+  if (result && result._retry && result.status === 401) {
+    const { refreshToken } = getStoredSession();
+    
+    if (!refreshToken) {
+      clearStoredSession();
+      if (window.location.pathname !== "/login" && window.location.pathname !== "/register") {
+        window.location.href = "/login";
+      }
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const newToken = await refreshTokens(refreshToken);
+        isRefreshing = false;
+        onRefreshed(newToken);
+      } catch (err) {
+        isRefreshing = false;
+        clearStoredSession();
+        window.location.href = "/login";
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+    }
+
+    const newToken = await new Promise((resolve) => {
+      subscribeTokenRefresh((token) => resolve(token));
+    });
+
+    // Retry with new token
+    const newOptions = {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${newToken}`,
+      },
+    };
+    
+    return apiRequest(path, newOptions);
+  }
+
+  return result;
 }
 
 export async function authenticatedRequest(path, token, options = {}) {

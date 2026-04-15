@@ -15,6 +15,7 @@ type DeliveryService interface {
 	GetDelivery(ctx context.Context, id uuid.UUID) (*model.Delivery, error)
 	GetDeliveryByOrderID(ctx context.Context, orderID uuid.UUID) (*model.Delivery, error)
 	ListDeliveriesByPartner(ctx context.Context, partnerID uuid.UUID) ([]*model.Delivery, error)
+	ListAvailableDeliveries(ctx context.Context) ([]*model.Delivery, error)
 }
 
 type deliveryService struct {
@@ -65,4 +66,8 @@ func (s *deliveryService) GetDeliveryByOrderID(ctx context.Context, orderID uuid
 
 func (s *deliveryService) ListDeliveriesByPartner(ctx context.Context, partnerID uuid.UUID) ([]*model.Delivery, error) {
 	return s.repo.ListByPartnerID(ctx, partnerID)
+}
+
+func (s *deliveryService) ListAvailableDeliveries(ctx context.Context) ([]*model.Delivery, error) {
+	return s.repo.ListUnassigned(ctx)
 }

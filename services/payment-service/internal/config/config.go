@@ -9,9 +9,10 @@ import (
 )
 
 type Config struct {
-	DatabaseURL   string
-	Port          string
-	JWTPublicKeys map[string]string
+	DatabaseURL     string
+	Port            string
+	OrderServiceURL string
+	JWTPublicKeys   map[string]string
 }
 
 func LoadConfig() *Config {
@@ -28,6 +29,11 @@ func LoadConfig() *Config {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8085"
+	}
+
+	orderServiceURL := os.Getenv("ORDER_SERVICE_URL")
+	if orderServiceURL == "" {
+		orderServiceURL = "http://order-service:8084" // Default for internal docker network
 	}
 
 	keysDir := os.Getenv("KEYS_DIR")
@@ -47,8 +53,9 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		DatabaseURL:   databaseURL,
-		Port:          port,
-		JWTPublicKeys: publicKeys,
+		DatabaseURL:     databaseURL,
+		Port:            port,
+		OrderServiceURL: orderServiceURL,
+		JWTPublicKeys:   publicKeys,
 	}
 }

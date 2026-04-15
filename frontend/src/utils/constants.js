@@ -1,8 +1,6 @@
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+// Re-export from centralized config (single source of truth)
+export { API_BASE_URL, GATEWAY_HEALTH_URL, WS_URL } from "../config/api";
 
-export const GATEWAY_HEALTH_URL =
-  import.meta.env.VITE_GATEWAY_HEALTH_URL ?? "/health";
 
 export const ROLE_TO_ROUTE = {
   CUSTOMER: "/shop",

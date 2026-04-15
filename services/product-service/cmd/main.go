@@ -68,9 +68,9 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 			
-			// Admin only mutations
+			// Warehouse Staff only mutations
 			r.Group(func(r chi.Router) {
-				r.Use(customMiddleware.RoleMiddleware("ADMIN"))
+				r.Use(customMiddleware.RoleMiddleware("WAREHOUSE_STAFF"))
 				r.Post("/", prodHandler.CreateProduct)
 				r.Patch("/{id}", prodHandler.UpdateProduct)
 				r.Delete("/{id}", prodHandler.DeleteProduct)

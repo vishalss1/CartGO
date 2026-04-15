@@ -24,12 +24,12 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product
 	}
 
 	query := `
-		INSERT INTO products (id, name, description, price, category)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING created_at, updated_at`
+		INSERT INTO products (id, name, description, price, category, is_active)
+		VALUES ($1, $2, $3, $4, $5, TRUE)
+		RETURNING created_at, updated_at, is_active`
 
 	err := r.db.QueryRowContext(ctx, query, p.ID, p.Name, p.Description, p.Price, p.Category).
-		Scan(&p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.CreatedAt, &p.UpdatedAt, &p.IsActive)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create product: %v", err)
@@ -40,13 +40,13 @@ func (r *PostgresProductRepository) Create(ctx context.Context, p *model.Product
 
 func (r *PostgresProductRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Product, error) {
 	query := `
-		SELECT id, name, description, price, category, created_at, updated_at
+		SELECT id, name, description, price, category, is_active, created_at, updated_at
 		FROM products
 		WHERE id = $1`
 
 	p := &model.Product{}
 	err := r.db.QueryRowContext(ctx, query, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
 
 	if err != nil {
 		return nil, err // Let service handle error translation
@@ -78,8 +78,13 @@ func (r *PostgresProductRepository) List(ctx context.Context, filter *model.Prod
 		argCount++
 	}
 
+	// Always filter for active products unless specified otherwise
+	whereClauses = append(whereClauses, fmt.Sprintf("is_active = $%d", argCount))
+	args = append(args, true)
+	argCount++
+
 	query := `
-		SELECT id, name, description, price, category, created_at, updated_at
+		SELECT id, name, description, price, category, is_active, created_at, updated_at
 		FROM products`
 
 	if len(whereClauses) > 0 {
@@ -110,7 +115,7 @@ func (r *PostgresProductRepository) List(ctx context.Context, filter *model.Prod
 	products := []*model.Product{}
 	for rows.Next() {
 		p := &model.Product{}
-		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.CreatedAt, &p.UpdatedAt)
+		err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Category, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("could not scan product: %v", err)
 		}
@@ -138,7 +143,7 @@ func (r *PostgresProductRepository) Update(ctx context.Context, p *model.Product
 }
 
 func (r *PostgresProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM products WHERE id = $1`
+	query := `UPDATE products SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
 	res, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err

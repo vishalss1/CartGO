@@ -8,6 +8,9 @@ import RegisterPage from "./pages/Register";
 import RoleRedirectPage from "./pages/RoleRedirect";
 import ShopPage from "./pages/Shop";
 import SupportPage from "./pages/Support";
+import SupportPortalPage from "./pages/SupportPortal";
+import CheckoutPaymentPage from "./pages/CheckoutPayment";
+import OrderDetailsPage from "./pages/OrderDetails";
 
 export default function App() {
   return (
@@ -17,6 +20,9 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute allowedRole="CUSTOMER" />}>
         <Route path="/shop" element={<ShopPage />} />
+        <Route path="/checkout/payment" element={<CheckoutPaymentPage />} />
+        <Route path="/support" element={<SupportPortalPage />} />
+        <Route path="/order/:orderId" element={<OrderDetailsPage />} />
       </Route>
       <Route element={<ProtectedRoute allowedRole="WAREHOUSE_STAFF" />}>
         <Route path="/inventory" element={<InventoryPage />} />

@@ -5,37 +5,58 @@ import { authenticatedRequest, apiRequest } from "../utils/api";
 import { VALID_ROLES } from "../utils/constants";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { logger } from "../utils/logger";
 
 export default function AdminPage() {
   const { token } = useAuth();
   const { showSuccess, showError } = useToast();
   const [users, setUsers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState("");
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [draftProduct, setDraftProduct] = useState({
-    name: "",
-    description: "",
-    price: "",
-    category: "",
+  const [updatingUserId, setUpdatingUserId] = useState("");
+  const [orderFilters, setOrderFilters] = useState({
+    status: "",
+    userId: "",
+    page: 1,
+    limit: 10,
   });
+  const [totalOrders, setTotalOrders] = useState(0);
 
   async function loadAdminData() {
+    setUsers([]);
     setLoading(true);
 
     try {
-      const [userList, productList] = await Promise.all([
-        authenticatedRequest("/user/admin/users", token),
-        apiRequest("/products?limit=100&offset=0"),
-      ]);
-      setUsers(Array.isArray(userList) ? userList : []);
-      setProducts(Array.isArray(productList) ? productList : []);
+      const userList = await authenticatedRequest("/user/admin/users", token);
+      const validUsers = Array.isArray(userList) ? userList : [];
+
+      logger.info(`Admin: API sync complete. Users: ${validUsers.length}`);
+      setUsers(validUsers);
     } catch (loadError) {
       showError(loadError.message);
+      logger.error("Admin Load Error:", loadError);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadGlobalOrders() {
+    setOrdersLoading(true);
+    try {
+      const { status, userId, page, limit } = orderFilters;
+      let url = `/orders?page=${page}&limit=${limit}`;
+      if (status) url += `&status=${status}`;
+      if (userId) url += `&user_id=${userId}`;
+
+      const response = await authenticatedRequest(url, token);
+      // Response format: { data, total, page, limit }
+      setOrders(response.data || []);
+      setTotalOrders(response.total || 0);
+    } catch (err) {
+      showError("Failed to fetch global orders");
+    } finally {
+      setOrdersLoading(false);
     }
   }
 
@@ -43,72 +64,11 @@ export default function AdminPage() {
     loadAdminData();
   }, [token]);
 
-  const usersByRole = useMemo(() => {
-    return VALID_ROLES.map((role) => ({
-      role,
-      count: users.filter((user) => user.role === role).length,
-    }));
-  }, [users]);
+  useEffect(() => {
+    loadGlobalOrders();
+  }, [token, orderFilters]);
 
-  async function updateRole(userId, role) {
-    try {
-      await authenticatedRequest(`/user/admin/users/${userId}/role`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ role }),
-      });
-      showSuccess("User role updated.");
-      await loadAdminData();
-    } catch (updateError) {
-      showError(updateError.message);
-    }
-  }
-
-  async function loadOrdersForUser() {
-    if (!selectedUserId) {
-      return;
-    }
-    setOrdersLoading(true);
-
-    try {
-      const userOrders = await authenticatedRequest(`/orders/user/${selectedUserId}`, token);
-      setOrders(Array.isArray(userOrders) ? userOrders : []);
-    } catch (loadError) {
-      showError(loadError.message);
-    } finally {
-      setOrdersLoading(false);
-    }
-  }
-
-  async function createProduct(event) {
-    event.preventDefault();
-
-    try {
-      await authenticatedRequest("/products", token, {
-        method: "POST",
-        body: JSON.stringify({
-          ...draftProduct,
-          price: Number(draftProduct.price),
-        }),
-      });
-      setDraftProduct({ name: "", description: "", price: "", category: "" });
-      showSuccess("Product created.");
-      await loadAdminData();
-    } catch (createError) {
-      showError(createError.message);
-    }
-  }
-
-  async function removeProduct(productId) {
-    try {
-      await authenticatedRequest(`/products/${productId}`, token, {
-        method: "DELETE",
-      });
-      showSuccess("Product removed.");
-      await loadAdminData();
-    } catch (removeError) {
-      showError(removeError.message);
-    }
-  }
+  const totalPages = Math.ceil(totalOrders / orderFilters.limit);
 
   return (
     <MainLayout>
@@ -126,22 +86,16 @@ export default function AdminPage() {
           </p>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2">
           <article className="border border-line p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted">Users</p>
             <p className="mt-4 text-[2.4rem] font-black tracking-hero">{users.length}</p>
           </article>
           <article className="border border-line p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted">
-              Products
+              Global Orders
             </p>
-            <p className="mt-4 text-[2.4rem] font-black tracking-hero">{products.length}</p>
-          </article>
-          <article className="border border-line p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted">
-              Roles
-            </p>
-            <p className="mt-4 text-[2.4rem] font-black tracking-hero">{VALID_ROLES.length}</p>
+            <p className="mt-4 text-[2.4rem] font-black tracking-hero">{totalOrders}</p>
           </article>
         </section>
 
@@ -163,8 +117,9 @@ export default function AdminPage() {
                     </div>
                     <select
                       value={user.role}
+                      disabled={updatingUserId === user.id}
                       onChange={(event) => updateRole(user.id, event.target.value)}
-                      className="border border-line bg-surface px-4 py-3 text-sm uppercase tracking-[0.16em] outline-none focus:border-paper"
+                      className="border border-line bg-surface px-4 py-3 text-sm uppercase tracking-[0.16em] outline-none focus:border-paper disabled:cursor-not-allowed disabled:bg-line"
                     >
                       {VALID_ROLES.map((role) => (
                         <option key={role} value={role}>
@@ -180,126 +135,93 @@ export default function AdminPage() {
 
           <div className="space-y-6">
             <section className="border border-line p-6">
-              <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-                Products
-              </h2>
-              <form onSubmit={createProduct} className="mt-6 grid gap-4">
-                <input
-                  value={draftProduct.name}
-                  onChange={(event) =>
-                    setDraftProduct((current) => ({ ...current, name: event.target.value }))
-                  }
-                  placeholder="Name"
-                  className="w-full border border-line bg-transparent px-4 py-4 outline-none focus:border-paper"
-                />
-                <input
-                  value={draftProduct.category}
-                  onChange={(event) =>
-                    setDraftProduct((current) => ({ ...current, category: event.target.value }))
-                  }
-                  placeholder="Category"
-                  className="w-full border border-line bg-transparent px-4 py-4 outline-none focus:border-paper"
-                />
-                <input
-                  value={draftProduct.price}
-                  onChange={(event) =>
-                    setDraftProduct((current) => ({ ...current, price: event.target.value }))
-                  }
-                  placeholder="Price"
-                  type="number"
-                  step="0.01"
-                  className="w-full border border-line bg-transparent px-4 py-4 outline-none focus:border-paper"
-                />
-                <textarea
-                  value={draftProduct.description}
-                  onChange={(event) =>
-                    setDraftProduct((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="Description"
-                  className="h-24 w-full border border-line bg-transparent px-4 py-4 outline-none focus:border-paper"
-                />
-                <button
-                  type="submit"
-                  className="inline-flex w-fit bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white"
-                >
-                  Create product
-                </button>
-              </form>
-              <div className="mt-6 space-y-3">
-                {products.slice(0, 8).map((product) => (
-                  <div key={product.id} className="flex items-center justify-between gap-4 border border-line p-4">
-                    <div>
-                      <p className="font-semibold uppercase tracking-[0.08em]">{product.name}</p>
-                      <p className="mt-1 text-sm text-muted">{product.category}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeProduct(product.id)}
-                      className="border border-accent px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-accent transition-colors hover:bg-accent hover:text-surface"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
+              <div className="flex items-end justify-between gap-4">
+                <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
+                  All Orders
+                </h2>
+                {ordersLoading ? <span className="text-sm text-muted animate-pulse">Syncing</span> : null}
               </div>
-            </section>
 
-            <section className="border border-line p-6">
-              <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-                Role totals
-              </h2>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {usersByRole.map((entry) => (
-                  <div key={entry.role} className="border border-line p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
-                      {entry.role}
-                    </p>
-                    <p className="mt-3 text-[2rem] font-black tracking-hero">{entry.count}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="border border-line p-6">
-              <h2 className="text-[2rem] font-extrabold uppercase leading-[0.92] tracking-hero">
-                Orders
-              </h2>
-              <div className="mt-6 flex flex-col gap-4">
+              {/* Filters */}
+              <div className="mt-6 flex flex-wrap gap-4">
                 <select
-                  value={selectedUserId}
-                  onChange={(event) => setSelectedUserId(event.target.value)}
-                  className="border border-line bg-surface px-4 py-4 text-sm uppercase tracking-[0.16em] outline-none focus:border-paper"
+                  value={orderFilters.status}
+                  onChange={(e) => setOrderFilters(curr => ({ ...curr, status: e.target.value, page: 1 }))}
+                  className="border border-line bg-surface px-4 py-3 text-xs uppercase tracking-[0.14em]"
                 >
-                  <option value="">Select user</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.email}
-                    </option>
+                  <option value="">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+
+                <select
+                   value={orderFilters.userId}
+                   onChange={(e) => setOrderFilters(curr => ({ ...curr, userId: e.target.value, page: 1 }))}
+                   className="border border-line bg-surface px-4 py-3 text-xs uppercase tracking-[0.14em] max-w-[200px]"
+                >
+                  <option value="">By User</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.username}</option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={loadOrdersForUser}
-                  disabled={!selectedUserId || ordersLoading}
-                  className="inline-flex w-fit bg-paper px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line"
-                >
-                  {ordersLoading ? "Loading orders" : "Load user orders"}
-                </button>
               </div>
+
               <div className="mt-6 space-y-4">
-                {orders.map((order) => (
-                  <div key={order.id} className="border border-line p-4">
-                    <p className="font-semibold uppercase tracking-[0.08em]">{order.status}</p>
-                    <p className="mt-2 text-sm text-muted">{order.id}</p>
-                    <p className="mt-2 text-sm text-muted">
-                      Amount: ${order.total_amount.toFixed(2)}
-                    </p>
-                  </div>
-                ))}
+                {orders.length === 0 && !ordersLoading ? (
+                  <p className="text-sm text-muted">No orders found.</p>
+                ) : (
+                  orders.map((order) => (
+                    <article key={order.id} className="border border-line p-4 transition-colors hover:border-paper">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${
+                            order.status === 'CONFIRMED' ? 'text-green-500' : 
+                            order.status === 'FAILED' ? 'text-accent' : 'text-muted'
+                          }`}>
+                            {order.status}
+                          </p>
+                          <p className="mt-1 text-xs text-muted font-mono">{order.id}</p>
+                          <p className="mt-2 text-sm text-paper font-semibold">
+                            UserID: <span className="text-muted font-normal">{order.user_id}</span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold uppercase tracking-hero">
+                            ${order.total_amount.toFixed(2)}
+                          </p>
+                          <p className="mt-1 text-[10px] text-muted">
+                            {new Date(order.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setOrderFilters(curr => ({ ...curr, page: Math.max(1, curr.page - 1) }))}
+                    disabled={orderFilters.page === 1}
+                    className="border border-line px-4 py-2 text-[10px] font-bold uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-xs font-mono">
+                    {orderFilters.page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setOrderFilters(curr => ({ ...curr, page: Math.min(totalPages, curr.page + 1) }))}
+                    disabled={orderFilters.page === totalPages}
+                    className="border border-line px-4 py-2 text-[10px] font-bold uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </section>
           </div>
         </section>
