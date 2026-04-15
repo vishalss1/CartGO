@@ -55,15 +55,32 @@ Dependency Resolution: `go.mod` uses `replace github.com/vishalss1/CartGO/pkg =>
 - **RESOLVED CORS & API Mismatch**: Implemented Vite Proxying and systemic response unwrapping (`{ success, data, error }`).
 - **ENFORCED Clean UX**: Stripped all debug technical text and internal system paths from user-facing pages.
 
-## 6. PENDING / MISSING
+## 6. OPENAPI SPECIFICATIONS
+Each microservice and the API Gateway have OpenAPI 3.0.0 specifications documented in JSON format. These can be imported into tools like Postman, Swagger UI, or ReDoc for interactive API exploration.
+
+| Service | Location | Endpoints |
+| :--- | :--- | :--- |
+| User Service | `services/user-service/api/v1.json` | Register, Login, User Profile, Admin User Management |
+| Product Service | `services/product-service/api/v1.json` | List Products, Get Product, Create (Admin), Delete (Admin) |
+| Inventory Service | `services/inventory-service/api/v1.json` | Get Inventory, Adjust Stock, Reserve/Commit/Release (Internal) |
+| Order Service | `services/order-service/api/v1.json` | Create Order, List User Orders, Get Order, Update Status (Internal) |
+| Payment Service | `services/payment-service/api/v1.json` | Process Payment, Get Payment, Refund (Internal) |
+| Delivery Service | `services/delivery-service/api/v1.json` | Partner Deliveries, Get Delivery, Update Status, Create (Internal) |
+| Support Service | `services/support-service/api/v1.json` | List Tickets, Get Ticket, Update Status, Messages |
+| API Gateway | `api-gateway/api/v1.json` | Aggregated specification of all endpoints (development reference) |
+
+**Note**: All endpoints use RS256 JWT (Bearer token) for authentication except public endpoints (Login, Register, List Products, Get Product).
+
+## 7. PENDING / MISSING
 - [x] Order Service: Real Pricing & Delivery Orchestration.
 - [x] Support Service: Order ID Linkage.
 - [x] Observability: Distributed Tracing (Correlation IDs).
 - [x] Frontend: Full backend integration with role-based UI.
+- [x] OpenAPI Specifications: All microservices documented.
 - [] Deployment: Kubernetes manifests (EKS/ALB) and Terraform infra.
 - [] Observability: Prometheus/Grafana full dashboard.
 
-## 7. FRONTEND ARCHITECTURE [IMPLEMENTED]
+## 8. FRONTEND ARCHITECTURE [IMPLEMENTED]
 ### Tech Stack
 - **Framework**: React 18 + Vite 5 (SPA).
 - **Routing**: react-router-dom v6 with role-based protected routes.

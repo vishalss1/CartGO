@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Delivery Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/deliveries/partner/:partner_id": {
+      "get": {
+        "summary": "Get deliveries assigned to a partner",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of assigned deliveries" }
+        }
+      }
+    },
+    "/api/v1/deliveries/:id": {
+      "get": {
+        "summary": "Get delivery details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Delivery details" }
+        }
+      }
+    },
+    "/api/v1/deliveries/:id/status": {
+      "patch": {
+        "summary": "Update delivery status",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Delivery status updated" }
+        }
+      }
+    },
+    "/api/v1/deliveries": {
+      "post": {
+        "summary": "Create a new delivery (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Delivery created" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

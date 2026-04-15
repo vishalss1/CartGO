@@ -1,0 +1,278 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO API Gateway",
+    "version": "1.0.0",
+    "description": "Main entry point API Gateway for CartGO microservices ecosystem"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check endpoint",
+        "responses": {
+          "200": { "description": "Gateway is healthy" }
+        }
+      }
+    },
+    "/api/v1/user/register": {
+      "post": {
+        "summary": "Register a new user",
+        "tags": ["User Service"],
+        "responses": {
+          "201": { "description": "User created" }
+        }
+      }
+    },
+    "/api/v1/user/login": {
+      "post": {
+        "summary": "User login",
+        "tags": ["User Service"],
+        "responses": {
+          "200": { "description": "Login successful" }
+        }
+      }
+    },
+    "/api/v1/user/me": {
+      "get": {
+        "summary": "Get current user info",
+        "tags": ["User Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User info" }
+        }
+      },
+      "patch": {
+        "summary": "Update current user profile",
+        "tags": ["User Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile updated" }
+        }
+      }
+    },
+    "/api/v1/user/admin/users": {
+      "get": {
+        "summary": "List all users (Admin only)",
+        "tags": ["User Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of users" }
+        }
+      }
+    },
+    "/api/v1/user/admin/users/:id/role": {
+      "patch": {
+        "summary": "Update user role (Admin only)",
+        "tags": ["User Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Role updated" }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "summary": "List all products",
+        "tags": ["Product Service"],
+        "responses": {
+          "200": { "description": "List of products" }
+        }
+      },
+      "post": {
+        "summary": "Create a new product (Admin only)",
+        "tags": ["Product Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Product created" }
+        }
+      }
+    },
+    "/api/v1/products/:id": {
+      "get": {
+        "summary": "Get product details",
+        "tags": ["Product Service"],
+        "responses": {
+          "200": { "description": "Product details" }
+        }
+      },
+      "delete": {
+        "summary": "Delete product (Admin only)",
+        "tags": ["Product Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Product deleted" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id": {
+      "get": {
+        "summary": "Get inventory for a product",
+        "tags": ["Inventory Service"],
+        "responses": {
+          "200": { "description": "Inventory details" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id/adjust": {
+      "post": {
+        "summary": "Adjust stock quantity (Warehouse staff only)",
+        "tags": ["Inventory Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stock adjusted" }
+        }
+      }
+    },
+    "/api/v1/orders": {
+      "post": {
+        "summary": "Create a new order",
+        "tags": ["Order Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Order created" }
+        }
+      }
+    },
+    "/api/v1/orders/user/:user_id": {
+      "get": {
+        "summary": "Get orders for a user",
+        "tags": ["Order Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of user orders" }
+        }
+      }
+    },
+    "/api/v1/orders/:id": {
+      "get": {
+        "summary": "Get order details",
+        "tags": ["Order Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Order details" }
+        }
+      }
+    },
+    "/api/v1/payments": {
+      "post": {
+        "summary": "Process a payment",
+        "tags": ["Payment Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Payment processed" }
+        }
+      }
+    },
+    "/api/v1/payments/:id": {
+      "get": {
+        "summary": "Get payment details",
+        "tags": ["Payment Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Payment details" }
+        }
+      }
+    },
+    "/api/v1/deliveries/partner/:partner_id": {
+      "get": {
+        "summary": "Get deliveries assigned to a partner",
+        "tags": ["Delivery Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of assigned deliveries" }
+        }
+      }
+    },
+    "/api/v1/deliveries/:id": {
+      "get": {
+        "summary": "Get delivery details",
+        "tags": ["Delivery Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Delivery details" }
+        }
+      }
+    },
+    "/api/v1/deliveries/:id/status": {
+      "patch": {
+        "summary": "Update delivery status",
+        "tags": ["Delivery Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Delivery status updated" }
+        }
+      }
+    },
+    "/api/v1/support/tickets": {
+      "get": {
+        "summary": "List support tickets",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of support tickets" }
+        }
+      },
+      "post": {
+        "summary": "Create a new support ticket",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Support ticket created" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id": {
+      "get": {
+        "summary": "Get ticket details",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Ticket details" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id/status": {
+      "patch": {
+        "summary": "Update ticket status",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Ticket status updated" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id/messages": {
+      "get": {
+        "summary": "Get ticket messages",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of ticket messages" }
+        }
+      },
+      "post": {
+        "summary": "Add a message to a ticket",
+        "tags": ["Support Service"],
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Message added" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

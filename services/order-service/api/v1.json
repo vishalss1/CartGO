@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Order Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/orders": {
+      "post": {
+        "summary": "Create a new order",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Order created" }
+        }
+      }
+    },
+    "/api/v1/orders/user/:user_id": {
+      "get": {
+        "summary": "Get orders for a user",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of user orders" }
+        }
+      }
+    },
+    "/api/v1/orders/:id": {
+      "get": {
+        "summary": "Get order details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Order details" }
+        }
+      }
+    },
+    "/api/v1/orders/:id/status": {
+      "patch": {
+        "summary": "Update order status (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Order status updated" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

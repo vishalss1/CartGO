@@ -1,0 +1,68 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Support Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/support/tickets": {
+      "get": {
+        "summary": "List support tickets",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of support tickets" }
+        }
+      },
+      "post": {
+        "summary": "Create a new support ticket",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Support ticket created" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id": {
+      "get": {
+        "summary": "Get ticket details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Ticket details" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id/status": {
+      "patch": {
+        "summary": "Update ticket status",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Ticket status updated" }
+        }
+      }
+    },
+    "/api/v1/support/tickets/:id/messages": {
+      "get": {
+        "summary": "Get ticket messages",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of ticket messages" }
+        }
+      },
+      "post": {
+        "summary": "Add a message to a ticket",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Message added" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Inventory Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/inventory/:product_id": {
+      "get": {
+        "summary": "Get inventory for a product",
+        "responses": {
+          "200": { "description": "Inventory details" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id/adjust": {
+      "post": {
+        "summary": "Adjust stock quantity (Warehouse staff only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stock adjusted" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id/reserve": {
+      "post": {
+        "summary": "Reserve stock for an order (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stock reserved" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id/commit": {
+      "post": {
+        "summary": "Commit reserved stock (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stock committed" }
+        }
+      }
+    },
+    "/api/v1/inventory/:product_id/release": {
+      "post": {
+        "summary": "Release reserved stock (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stock released" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

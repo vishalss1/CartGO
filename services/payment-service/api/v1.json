@@ -1,0 +1,45 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CartGO Payment Service API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/payments": {
+      "post": {
+        "summary": "Process a payment",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "201": { "description": "Payment processed" }
+        }
+      }
+    },
+    "/api/v1/payments/:id": {
+      "get": {
+        "summary": "Get payment details",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Payment details" }
+        }
+      }
+    },
+    "/api/v1/payments/:id/refund": {
+      "post": {
+        "summary": "Refund a payment (Internal only)",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Payment refunded" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
