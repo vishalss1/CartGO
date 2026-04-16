@@ -7,3 +7,4 @@ deployments/terraform
 .github
 *.exe
 node_modules
+k8s
