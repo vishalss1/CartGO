@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,11 +52,9 @@ func main() {
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
-	})
-
-	r.Get("/api/v1/user/health", func(w http.ResponseWriter, r *http.Request) {
-		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "user-service", time.Now().Format(time.RFC3339))
 	})
 
 	r.Route("/api/v1/user", func(r chi.Router) {

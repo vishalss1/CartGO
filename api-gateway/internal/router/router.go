@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -49,7 +50,8 @@ func NewRouter(cfg *config.Config, proxies *ProxyContainer) *chi.Mux {
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"OK", "service":"api-gateway"}`))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "api-gateway", time.Now().Format(time.RFC3339))
 	})
 
 	// Service Routes

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -41,6 +42,13 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(15 * time.Second))
+
+	// Health check
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "support-service", time.Now().Format(time.RFC3339))
+	})
 
 	r.Route("/api/v1/support", func(r chi.Router) {
 		r.Use(customMiddleware.AuthMiddleware(cfg.JWTPublicKeys))

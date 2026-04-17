@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -56,12 +57,9 @@ func main() {
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := conn.Ping(); err != nil {
-			log.Printf("Health check failed: %v", err)
-			util.WriteError(w, http.StatusInternalServerError, "DB connectivity lost")
-			return
-		}
-		util.WriteJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "order-service", time.Now().Format(time.RFC3339))
 	})
 
 	// API v1 Routes

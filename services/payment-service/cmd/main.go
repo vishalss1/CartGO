@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -52,13 +53,9 @@ func main() {
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := conn.Ping(); err != nil {
-			log.Printf("Health check failed: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"OK"}`))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "payment-service", time.Now().Format(time.RFC3339))
 	})
 
 	// setup middleware

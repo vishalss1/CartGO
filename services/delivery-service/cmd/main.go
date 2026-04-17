@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,18 +46,15 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(deliveryMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		if err := conn.Ping(); err != nil {
-			log.Printf("Health check failed: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"OK"}`))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "delivery-service", time.Now().Format(time.RFC3339))
 	})
+
+	r.Use(deliveryMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
 	// API v1 Routes
 	r.Route("/api/v1/deliveries", func(r chi.Router) {

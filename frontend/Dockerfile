@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -16,22 +16,25 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve
-FROM node:18-alpine
+FROM nginx:alpine
 
-WORKDIR /app
+WORKDIR /usr/share/nginx/html
 
-# Install serve to run the production build
-RUN npm install -g serve
+# Remove default nginx static assets
+RUN rm -rf ./*
 
 # Copy the built app from builder
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist .
 
-# Expose port
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port (matches nginx.conf)
 EXPOSE 3000
 
-# Health check
+# Health check (standardized endpoint)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Start the app
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
