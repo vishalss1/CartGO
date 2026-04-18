@@ -6,11 +6,34 @@ COPY pkg ./pkg
 
 WORKDIR /src/services/delivery-service
 COPY services/delivery-service/go.mod services/delivery-service/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    sh -c '\
+    for i in 1 2 3; do \
+      echo "Go mod download attempt $i/3"; \
+      GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org \
+      timeout 300 go mod download && break; \
+      if [ $i -lt 3 ]; then \
+        echo "Attempt $i failed, waiting before retry..."; \
+        sleep $((10 * i)); \
+      fi; \
+    done'
 
 COPY services/delivery-service .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o delivery-service ./cmd/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    sh -c '\
+    for i in 1 2 3; do \
+      echo "Go build attempt $i/3"; \
+      GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org \
+      timeout 300 go build -o delivery-service ./cmd/main.go && break; \
+      if [ $i -lt 3 ]; then \
+        echo "Attempt $i failed, cleaning cache and retrying..."; \
+        go clean -modcache; \
+        sleep $((10 * i)); \
+      fi; \
+    done'
 
 
 # Run Stage
