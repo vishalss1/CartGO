@@ -44,31 +44,40 @@ func main() {
 
 	// Setup router
 	r := chi.NewRouter()
+	
+	// Global Middleware (Applied in order)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-
-	// Health check
+	r.Use(middleware.Timeout(60 * time.Second))
+	
+	// Routes
+	// 1. Health check (Public)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, `{"status":"OK","service":"%s","timestamp":"%s"}`, "delivery-service", time.Now().Format(time.RFC3339))
 	})
 
-	r.Use(deliveryMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
+	// 2. Protected Routes
+	r.Group(func(r chi.Router) {
+		r.Use(deliveryMiddleware.AuthMiddleware(cfg.JWTPublicKeys))
 
-	// API v1 Routes
-	r.Route("/api/v1/deliveries", func(r chi.Router) {
-		r.With(deliveryMiddleware.RoleMiddleware("CUSTOMER", "ADMIN", "SERVICE_ORDER")).Post("/", deliveryHandler.CreateDelivery)
+		// API v1 Routes
+		r.Route("/api/v1/deliveries", func(r chi.Router) {
+			r.With(deliveryMiddleware.RoleMiddleware("CUSTOMER", "ADMIN", "SERVICE_ORDER")).Post("/", deliveryHandler.CreateDelivery)
 
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", deliveryHandler.GetDelivery)
-			r.With(deliveryMiddleware.RoleMiddleware("DELIVERY_PARTNER", "ADMIN")).
-				Patch("/status", deliveryHandler.UpdateDeliveryStatus)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", deliveryHandler.GetDelivery)
+				r.With(deliveryMiddleware.RoleMiddleware("DELIVERY_PARTNER", "ADMIN")).
+					Patch("/status", deliveryHandler.UpdateDeliveryStatus)
+			})
+
+			r.Get("/order/{order_id}", deliveryHandler.GetDeliveryByOrderID)
+			r.Get("/partner/{partner_id}", deliveryHandler.ListDeliveriesByPartner)
+			r.Get("/available", deliveryHandler.ListAvailableDeliveries)
 		})
-
-		r.Get("/order/{order_id}", deliveryHandler.GetDeliveryByOrderID)
-		r.Get("/partner/{partner_id}", deliveryHandler.ListDeliveriesByPartner)
-		r.Get("/available", deliveryHandler.ListAvailableDeliveries)
 	})
 
 	// Setup server

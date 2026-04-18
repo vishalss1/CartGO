@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/vishalss1/CartGO/pkg/auth"
-	"github.com/vishalss1/CartGO/pkg/util"
 )
 
 type contextKey string
@@ -27,7 +26,7 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			if internalRole != "" {
 				userID, err := uuid.Parse(internalUserIDStr)
 				if err != nil {
-					util.WriteError(w, http.StatusUnauthorized, "Invalid internal user id")
+					http.Error(w, "Unauthorized: Invalid internal user id", http.StatusUnauthorized)
 					return
 				}
 				ctx := context.WithValue(r.Context(), RoleContextKey, internalRole)
@@ -39,25 +38,25 @@ func AuthMiddleware(publicKeys map[string]string) func(http.Handler) http.Handle
 			// 2. Fallback to JWT Authorization
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				util.WriteError(w, http.StatusUnauthorized, "Missing authorization header")
+				http.Error(w, "Unauthorized: Missing authorization header", http.StatusUnauthorized)
 				return
 			}
 
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				util.WriteError(w, http.StatusUnauthorized, "Invalid authorization header format")
+				http.Error(w, "Unauthorized: Invalid authorization header format", http.StatusUnauthorized)
 				return
 			}
 
 			claims, err := auth.ValidateToken(parts[1], publicKeys, "cartgo-delivery-service")
 			if err != nil {
-				util.WriteError(w, http.StatusUnauthorized, "Invalid token")
+				http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
 				return
 			}
 
 			userID, err := uuid.Parse(claims.UserID)
 			if err != nil {
-				util.WriteError(w, http.StatusUnauthorized, "Invalid token subject")
+				http.Error(w, "Unauthorized: Invalid token subject", http.StatusUnauthorized)
 				return
 			}
 
@@ -84,7 +83,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role := GetRole(r.Context())
 			if role == "" {
-				util.WriteError(w, http.StatusUnauthorized, "User role not found in context")
+				http.Error(w, "Unauthorized: User role not found in context", http.StatusUnauthorized)
 				return
 			}
 
@@ -97,7 +96,7 @@ func RoleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
 			}
 
 			if !isAllowed {
-				util.WriteError(w, http.StatusForbidden, "Unauthorized role for this operation")
+				http.Error(w, "Forbidden: Unauthorized role for this operation", http.StatusForbidden)
 				return
 			}
 
