@@ -3,14 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files from frontend folder
-COPY frontend/package.json frontend/package-lock.json* frontend/yarn.lock* ./
+# Copy package files
+COPY package.json package-lock.json* yarn.lock* ./
 
 # Install dependencies
 RUN npm install
 
-# Copy full frontend source
-COPY frontend/ .
+# Copy frontend source
+COPY . .
 
 # Build the app
 RUN npm run build
@@ -26,8 +26,8 @@ RUN rm -rf ./*
 # Copy built files from builder
 COPY --from=builder /app/dist .
 
-# Copy nginx config from frontend folder
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port
 EXPOSE 3000

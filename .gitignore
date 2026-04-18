@@ -1,10 +1,102 @@
+# Environment & Secrets
 .env
+.env.local
+.env.*.local
 keys
+*.pem
+jwt_*
+
+# Generated & Test Files
 test*
-docker-compose.yml
-env*
+*.test
+*.out
+tmp/
+temp/
+.tmp/
+
+# Configuration
+docker-compose.override.yml
+kubeconfig
+
+# Kubernetes & Deployment
+k8s/*.backup
+k8s/*.bak
 deployments/terraform
-.github
+.kube/
+
+# Node & Frontend
+node_modules/
+npm-debug.log
+yarn-error.log
+.next/
+dist/
+build/
+frontend/node_modules/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Binaries & Build Output
 *.exe
-node_modules
+*.dll
+*.dylib
+*.so
+*.o
+*.a
+bin/
+dist/
+
+# Go
+vendor/
+go.sum
+*.test
+
+# Logs
+*.log
+logs/
+
+# Database
+postgres_data/
+*.sql.bak
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Development Scripts (generated/temporary)
+deploy.sh
+run-cartgo.sh
+run-cartgo.bat
+start.sh
+setup-hosts.sh
+setup-hosts.bat
+validate.sh
+validate.bat
+test_health.sh
+test_user_db.go
+scratch.go
+val.go
+
+# Documentation (reference only)
+START-HERE.md
+HOW-TO-RUN.md
+ANSWER.md
+RUN.md
+QUICKSTART.md
+QUICK-STEPS.md
+DEPLOYMENT-COMPLETE.md
+README-KUBERNETES.md
+TASK-COMPLETE.md
+COMPLETION-REPORT.md
+WORK-COMPLETE.txt
+COPY-PASTE.sh
+COPY-PASTE.bat
+
 k8s
+docker-compose.yml
+env_files.txt
