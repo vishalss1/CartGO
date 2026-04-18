@@ -1,6 +1,7 @@
 # CartGO Agent Context [BOOTSTRAP]
 # Status: ACTIVE_STANDARDIZED
-# Modified: 2026-04-09 16:55 UTC
+# Modified: 2026-04-18 14:30 UTC
+# Latest: README refactored (GitHub-focused), .gitignore expanded, k8s/ gitignored for security
 
 ## 1. INFRASTRUCTURE & DISCOVERY
 Topology: Monorepo with 8 containers + Postgres
@@ -46,6 +47,9 @@ Rebuild Single: `docker-compose up --build -d <service-name>`
 Dependency Resolution: `go.mod` uses `replace github.com/vishalss1/CartGO/pkg => ../../pkg` (or similar relative path)
 
 ## 5. RECENT REVISIONS (CRITICAL)
+- **GITIGNORE CLEANUP**: Expanded `.gitignore` to exclude noisy files (test*, logs, node_modules, build artifacts, IDE files, documentation scripts).
+- **k8s/ DIRECTORY GITIGNORED**: Kubernetes manifests with sensitive DB passwords and infrastructure details removed from git tracking for security.
+- **README REFACTORED**: Updated `README.md` to be GitHub-focused documentation of codebase architecture, services, and development setup. Removed deployment guides (now in gitignored docs). Emphasizes microservices patterns, security, and design principles.
 - REVERTED all `slog` usage to standard `log`.
 - FIXED `payment-service` AuthMiddleware to support `X-User-Role` (internal headers).
 - ADDED Healthchecks to `docker-compose.yml` (Services wait for `db` to be healthy).
@@ -71,14 +75,50 @@ Each microservice and the API Gateway have OpenAPI 3.0.0 specifications document
 
 **Note**: All endpoints use RS256 JWT (Bearer token) for authentication except public endpoints (Login, Register, List Products, Get Product).
 
-## 7. PENDING / MISSING
+## 7. REPOSITORY STATUS
 - [x] Order Service: Real Pricing & Delivery Orchestration.
 - [x] Support Service: Order ID Linkage.
 - [x] Observability: Distributed Tracing (Correlation IDs).
 - [x] Frontend: Full backend integration with role-based UI.
 - [x] OpenAPI Specifications: All microservices documented.
-- [] Deployment: Kubernetes manifests (EKS/ALB) and Terraform infra.
-- [] Observability: Prometheus/Grafana full dashboard.
+- [x] Documentation: README.md with architecture overview.
+- [x] Gitignore: Comprehensive exclusion of sensitive and noisy files.
+- [x] Kubernetes Deployment: All 10 pods running, Nginx Ingress operational.
+- [x] Deployment Automation: run-cartgo.sh and run-cartgo.bat scripts for one-command deployment.
+- [x] System Verified: Health checks passing, all inter-service communication operational.
+
+### Deployment Status
+**Kubernetes Cluster**: Fully deployed and operational
+- Namespace: `cartgo`
+- All 8 microservices + api-gateway + frontend running
+- Nginx Ingress Controller configured for cartgo.local routing
+- Per-service PostgreSQL databases initialized and healthy
+- Distributed tracing with correlation IDs active across all service flows
+- Deployment automation scripts (gitignored) available for one-command deployment
+
+### GITIGNORED (Not in Repository)
+**k8s/** - Kubernetes manifests with sensitive information:
+  - Deployment configurations
+  - Service definitions
+  - ConfigMaps/Secrets with database credentials
+  - Ingress configuration
+  - Database initialization scripts with passwords
+  - Terraform infrastructure code (if present)
+  
+**Development/Documentation Guides** (gitignored):
+  - Setup scripts (deploy.sh, run-cartgo.sh, setup-hosts.sh, etc.)
+  - Quick start guides (START-HERE.md, HOW-TO-RUN.md, ANSWER.md, etc.)
+  - Deployment documentation
+  - Reference files
+
+### Future Enhancements
+- [ ] Prometheus/Grafana monitoring dashboards
+- [ ] ELK stack for distributed logging
+- [ ] Message queue integration (RabbitMQ/Kafka) for async operations
+- [ ] Redis caching layer for product catalog
+- [ ] Service mesh (Istio) for advanced traffic management
+- [ ] GraphQL API layer
+- [ ] Advanced pagination and filtering on all list endpoints
 
 ## 8. FRONTEND ARCHITECTURE [IMPLEMENTED]
 ### Tech Stack
