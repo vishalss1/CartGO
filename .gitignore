@@ -100,3 +100,4 @@ COPY-PASTE.bat
 k8s
 docker-compose.yml
 env_files.txt
+.claude
