@@ -2,10 +2,10 @@
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
-COPY pkg ./pkg
+COPY src/pkg ./pkg
 
-WORKDIR /src/api-gateway
-COPY api-gateway/go.mod api-gateway/go.sum ./
+WORKDIR /src/services/user-service
+COPY src/services/user-service/go.mod src/services/user-service/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     sh -c '\
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       fi; \
     done'
 
-COPY api-gateway .
+COPY src/services/user-service .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     for i in 1 2 3; do \
       echo "Go build attempt $i/3"; \
       GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org \
-      timeout 300 go build -o api-gateway ./cmd/main.go && break; \
+      timeout 300 go build -o user-service ./cmd/main.go && break; \
       if [ $i -lt 3 ]; then \
         echo "Attempt $i failed, cleaning cache and retrying..."; \
         go clean -modcache; \
@@ -43,8 +43,8 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /src/api-gateway/api-gateway .
+COPY --from=builder /src/services/user-service/user-service .
 
-EXPOSE 8080
+EXPOSE 8081
 
-CMD ["./api-gateway"]
+CMD ["./user-service"]

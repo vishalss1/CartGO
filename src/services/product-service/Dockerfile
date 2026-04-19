@@ -2,10 +2,10 @@
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
-COPY pkg ./pkg
+COPY src/pkg ./pkg
 
-WORKDIR /src/services/inventory-service
-COPY services/inventory-service/go.mod services/inventory-service/go.sum ./
+WORKDIR /src/services/product-service
+COPY src/services/product-service/go.mod src/services/product-service/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     sh -c '\
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       fi; \
     done'
 
-COPY services/inventory-service .
+COPY src/services/product-service .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     for i in 1 2 3; do \
       echo "Go build attempt $i/3"; \
       GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org \
-      timeout 300 go build -o inventory-service ./cmd/main.go && break; \
+      timeout 300 go build -o product-service ./cmd/main.go && break; \
       if [ $i -lt 3 ]; then \
         echo "Attempt $i failed, cleaning cache and retrying..."; \
         go clean -modcache; \
@@ -43,8 +43,8 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /src/services/inventory-service/inventory-service .
+COPY --from=builder /src/services/product-service/product-service .
 
-EXPOSE 8083
+EXPOSE 8082
 
-CMD ["./inventory-service"]
+CMD ["./product-service"]

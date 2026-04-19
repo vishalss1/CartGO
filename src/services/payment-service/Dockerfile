@@ -2,10 +2,10 @@
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
-COPY pkg ./pkg
+COPY src/pkg ./pkg
 
 WORKDIR /src/services/payment-service
-COPY services/payment-service/go.mod services/payment-service/go.sum ./
+COPY src/services/payment-service/go.mod src/services/payment-service/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     sh -c '\
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       fi; \
     done'
 
-COPY services/payment-service .
+COPY src/services/payment-service .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

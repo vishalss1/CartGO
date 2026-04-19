@@ -2,10 +2,10 @@
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
-COPY pkg ./pkg
+COPY src/pkg ./pkg
 
-WORKDIR /src/services/order-service
-COPY services/order-service/go.mod services/order-service/go.sum ./
+WORKDIR /src/services/support-service
+COPY src/services/support-service/go.mod src/services/support-service/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     sh -c '\
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       fi; \
     done'
 
-COPY services/order-service .
+COPY src/services/support-service .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     for i in 1 2 3; do \
       echo "Go build attempt $i/3"; \
       GOPROXY=https://proxy.golang.org,direct GOSUMDB=sum.golang.org \
-      timeout 300 go build -o order-service ./cmd/main.go && break; \
+      timeout 300 go build -o support-service ./cmd/main.go && break; \
       if [ $i -lt 3 ]; then \
         echo "Attempt $i failed, cleaning cache and retrying..."; \
         go clean -modcache; \
@@ -43,8 +43,8 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /src/services/order-service/order-service .
+COPY --from=builder /src/services/support-service/support-service .
 
-EXPOSE 8084
+EXPOSE 8087
 
-CMD ["./order-service"]
+CMD ["./support-service"]

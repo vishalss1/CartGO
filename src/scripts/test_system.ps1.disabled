@@ -1,0 +1,166 @@
+$BaseURL = "http://localhost:8080"
+$ErrorActionPreference = "Stop"
+
+function Log($msg) {
+    Write-Host "`n>>> $msg" -ForegroundColor Cyan
+}
+
+function Test-Endpoint($url) {
+    try {
+        $res = Invoke-RestMethod -Uri "$BaseURL$url" -Method Get
+        Write-Host "SUCCESS: $url" -ForegroundColor Green
+        return $res
+    } catch {
+        $body = $_.Exception.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($body)
+        $respBody = $reader.ReadToEnd()
+        Write-Host "FAILED: $url ($($_.Exception.Message)) - Body: $respBody" -ForegroundColor Red
+        return $null
+    }
+}
+
+function Invoke-LoggedRestMethod($uri, $method, $body, $headers) {
+    try {
+        $params = @{
+            Uri = $uri
+            Method = $method
+            ContentType = "application/json"
+        }
+        if ($body) { $params.Body = $body }
+        if ($headers) { $params.Headers = $headers }
+        
+        $res = Invoke-RestMethod @params
+        if ($res.success -ne $true) {
+            throw "API Error: $($res.error)"
+        }
+        return $res
+    } catch {
+        if ($_.Exception.Response) {
+            $stream = $_.Exception.Response.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $respBody = $reader.ReadToEnd()
+            throw "$($_.Exception.Message) - Body: $respBody"
+        } else {
+            throw $_.Exception.Message
+        }
+    }
+}
+
+Log "1. Health Checks"
+Test-Endpoint "/health"
+Test-Endpoint "/api/v1/user/health" # Direct to service might not work via gateway if not mapped, but let's see.
+# Wait, Gateway maps /api/v1/user* to user-service.
+# Services usually have /health at root.
+# Let's try direct ports if Gateway doesn't map /health for services.
+# User service: 8081, Product: 8082, etc.
+
+Log "2. Authentication - Admin Login"
+$LoginBody = @{
+    email = "admin@cartgo.com"
+    password = "admin123"
+} | ConvertTo-Json
+
+try {
+    $LoginRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/user/login" -method Post -body $LoginBody
+    $AdminToken = $LoginRes.data.access_token
+    Log "Admin Login Successful. Token obtained."
+} catch {
+    Log "Admin Login FAILED: $_"
+    exit 1
+}
+
+Log "3. Catalog Setup - Create Product"
+$ProductBody = @{
+    name = "Test Drone X1"
+    description = "High-performance delivery drone"
+    price = 1299.99
+    category = "Electronics"
+} | ConvertTo-Json
+
+$AuthHeader = @{ Authorization = "Bearer $AdminToken" }
+
+try {
+    $ProductRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/products" -method Post -body $ProductBody -headers $AuthHeader
+    $Product = $ProductRes.data
+    $ProductID = $Product.id
+    Log "Product Created ID: $ProductID"
+} catch {
+    Log "Product Creation FAILED: $_"
+    exit 1
+}
+
+Log "4. Inventory Setup - Adjust Stock"
+$InventoryBody = @{
+    adjustment = 10
+} | ConvertTo-Json
+
+try {
+    Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/inventory/$ProductID/adjust" -method Post -body $InventoryBody -headers $AuthHeader
+    Log "Stock Adjusted (+10)"
+} catch {
+    Log "Inventory Adjustment FAILED: $_"
+}
+
+Log "5. Customer Registration & Login"
+# Use a dynamic email to avoid conflict
+$Timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$CustomerBody = @{
+    username = "testcustomer_$Timestamp"
+    email = "customer_$Timestamp@example.com"
+    password = "password123"
+    role = "CUSTOMER"
+} | ConvertTo-Json
+
+try {
+    Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/user/register" -method Post -body $CustomerBody
+    $CustLoginRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/user/login" -method Post -body $CustomerBody
+    $CustomerToken = $CustLoginRes.data.access_token
+    $CustomerID = $CustLoginRes.data.user.id
+    Log "Customer Registered & Logged In. ID: $CustomerID"
+} catch {
+    Log "Customer Setup FAILED: $_"
+}
+
+Log "6. Order Creation Flow"
+$OrderBody = @{
+    items = @(
+        @{
+            product_id = $ProductID
+            quantity = 1
+        }
+    )
+    delivery_address = "123 Beta St, Tech City"
+} | ConvertTo-Json
+
+$CustHeader = @{ Authorization = "Bearer $CustomerToken" }
+
+try {
+    $OrderRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/orders" -method Post -body $OrderBody -headers $CustHeader
+    $Order = $OrderRes.data
+    $OrderID = $Order.id
+    Log "Order Created. ID: $OrderID. Status: $($Order.status)"
+} catch {
+    Log "Order Creation FAILED: $_"
+}
+
+Log "7. Verify Order Details & Integration"
+if ($OrderID) {
+    $OrderDetailsRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/orders/$OrderID" -method Get -headers $CustHeader
+    $OrderDetails = $OrderDetailsRes.data
+    Log "Current Order Status: $($OrderDetails.status)"
+}
+
+Log "8. Support Ticket Creation"
+$TicketBody = @{
+    order_id = $OrderID
+    subject = "Delayed Delivery"
+} | ConvertTo-Json
+
+try {
+    $TicketRes = Invoke-LoggedRestMethod -uri "$BaseURL/api/v1/support/tickets" -method Post -body $TicketBody -headers $CustHeader
+    Log "Support Ticket Created. ID: $($TicketRes.data.id)"
+} catch {
+    Log "Support Ticket Creation FAILED: $_"
+}
+
+Log "Testing Complete."
