@@ -6,14 +6,6 @@ keys
 *.pem
 jwt_*
 
-# Generated & Test Files
-test*
-*.test
-*.out
-tmp/
-temp/
-.tmp/
-
 # Configuration
 docker-compose.override.yml
 kubeconfig
@@ -23,6 +15,7 @@ k8s/*.backup
 k8s/*.bak
 deployments/terraform
 .kube/
+scripts/test*
 
 # Node & Frontend
 node_modules/
@@ -35,11 +28,7 @@ frontend/node_modules/
 
 # IDE & Editor
 .vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+.claude/
 
 # Binaries & Build Output
 *.exe
@@ -54,7 +43,6 @@ dist/
 # Go
 vendor/
 go.sum
-*.test
 
 # Logs
 *.log
@@ -64,40 +52,8 @@ logs/
 postgres_data/
 *.sql.bak
 
-# OS Files
-.DS_Store
-Thumbs.db
-
-# Development Scripts (generated/temporary)
-deploy.sh
-run-cartgo.sh
-run-cartgo.bat
-start.sh
-setup-hosts.sh
-setup-hosts.bat
-validate.sh
-validate.bat
-test_health.sh
-test_user_db.go
-scratch.go
-val.go
-
 # Documentation (reference only)
-START-HERE.md
 HOW-TO-RUN.md
-ANSWER.md
-RUN.md
-QUICKSTART.md
-QUICK-STEPS.md
-DEPLOYMENT-COMPLETE.md
-README-KUBERNETES.md
-TASK-COMPLETE.md
-COMPLETION-REPORT.md
-WORK-COMPLETE.txt
-COPY-PASTE.sh
-COPY-PASTE.bat
 
 k8s
 docker-compose.yml
-env_files.txt
-.claude
